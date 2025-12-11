@@ -193,7 +193,22 @@ class TestFactoryFunctions:
     def test_create_meshnet_invalid_variant(self) -> None:
         """Test create_meshnet raises error for invalid variant."""
         with pytest.raises(ValueError, match="Unknown variant"):
-            create_meshnet("meshnet-100")  # type: ignore[arg-type]
+            create_meshnet("meshnet-100")
+
+    def test_create_meshnet_underscore_variants(self) -> None:
+        """Test create_meshnet accepts underscore variants for Hydra compatibility."""
+        # Hydra configs use underscores (meshnet_26.yaml), factory uses hyphens
+        model = create_meshnet("meshnet_26")
+        assert model.channels == 26
+        assert model.count_parameters() == 147_474
+
+        model = create_meshnet("meshnet_16")
+        assert model.channels == 16
+        assert model.count_parameters() == 56_194
+
+        model = create_meshnet("meshnet_5")
+        assert model.channels == 5
+        assert model.count_parameters() == 5_682
 
 
 class TestWeightInitialization:

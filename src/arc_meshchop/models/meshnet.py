@@ -258,13 +258,16 @@ MeshNetVariant = Literal["meshnet-5", "meshnet-16", "meshnet-26"]
 
 
 def create_meshnet(
-    variant: MeshNetVariant,
+    variant: str,
     dropout_p: float = 0.0,
 ) -> MeshNet:
     """Create MeshNet model by variant name.
 
+    Accepts both hyphenated ("meshnet-26") and underscored ("meshnet_26") names
+    for compatibility with Hydra configs.
+
     Args:
-        variant: Model variant ("meshnet-5", "meshnet-16", "meshnet-26").
+        variant: Model variant (e.g., "meshnet-26" or "meshnet_26").
         dropout_p: Dropout probability.
 
     Returns:
@@ -273,13 +276,19 @@ def create_meshnet(
     Raises:
         ValueError: If variant is unknown.
     """
+    # Normalize: underscore → hyphen for consistent lookup
+    normalized = variant.replace("_", "-")
+
     factories = {
         "meshnet-5": meshnet_5,
         "meshnet-16": meshnet_16,
         "meshnet-26": meshnet_26,
     }
 
-    if variant not in factories:
-        raise ValueError(f"Unknown variant: {variant}. Expected one of: {list(factories.keys())}")
+    if normalized not in factories:
+        raise ValueError(
+            f"Unknown variant: {variant}. Expected one of: {list(factories.keys())} "
+            "(underscore variants also accepted)"
+        )
 
-    return factories[variant](dropout_p=dropout_p)
+    return factories[normalized](dropout_p=dropout_p)
