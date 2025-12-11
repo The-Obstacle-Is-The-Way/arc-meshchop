@@ -93,7 +93,7 @@ make ci
 
 ```bash
 # Implement preprocessing pipeline
-# Download ARC dataset via neuroimaging-go-brrrr (pinned Git dependency)
+# Download ARC dataset via HuggingFace datasets
 # Generate CV splits
 
 # Run: uv run pytest tests/test_data/ -v
@@ -152,7 +152,7 @@ pandas = ">=2.0.0"
 scipy = ">=1.10.0"
 statsmodels = ">=0.14.0"  # Holm-Bonferroni correction
 hydra-core = ">=1.3.0"
-orion = ">=0.2.7"
+optuna = ">=3.5.0"  # Replaces orion (broken on Python 3.12)
 typer = ">=0.12.0"
 ```
 
@@ -187,14 +187,14 @@ onnxruntime = ">=1.16.0"
 | Reference | GitHub | Use |
 |-----------|--------|-----|
 | BrainChop | [neuroneural/brainchop](https://github.com/neuroneural/brainchop) | Verified architecture details (JS-based, read-only) |
-| neuroimaging-go-brrrr | [The-Obstacle-Is-The-Way/neuroimaging-go-brrrr@v0.2.0](https://github.com/The-Obstacle-Is-The-Way/neuroimaging-go-brrrr/releases/tag/v0.2.0) | ARC dataset pipeline (**pinned Git dependency**) |
 | NiiVue | [niivue/niivue](https://github.com/niivue/niivue) | Visualization (JS-based, read-only) |
 
-### Pinned Dependencies
+### HuggingFace Dependencies
 
 ```toml
-# In pyproject.toml - neuroimaging-go-brrrr is installed from GitHub, NOT from _references/
-"neuroimaging-go-brrrr @ git+https://github.com/The-Obstacle-Is-The-Way/neuroimaging-go-brrrr.git@v0.2.0",
+# ARC dataset access via HuggingFace (neuroimaging-go-brrrr removed due to submodule issues)
+"datasets>=3.4.0",
+"huggingface-hub>=0.32.0",
 ```
 
 ---

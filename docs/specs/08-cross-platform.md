@@ -128,13 +128,13 @@ def _mps_is_functional() -> bool:
         return False
 
 
-def get_device_info() -> dict[str, str | bool | int]:
+def get_device_info() -> dict[str, str | bool | int | float]:
     """Get information about available devices.
 
     Returns:
         Dictionary with device availability and details.
     """
-    info: dict[str, str | bool | int] = {
+    info: dict[str, str | bool | int | float] = {
         "cuda_available": torch.cuda.is_available(),
         "mps_available": torch.backends.mps.is_available(),
         "cpu_count": os.cpu_count() or 1,

@@ -111,12 +111,6 @@ Tests use TDD approach with synthetic data:
 - `_references/brainchop/` - VERIFIED architecture (JS-based, read-only reference)
 - `_references/niivue/` - WebGL visualization (JS-based, read-only reference)
 
-### Pinned Python Dependencies (installed via Git)
-
-- **neuroimaging-go-brrrr** @ `git+https://github.com/The-Obstacle-Is-The-Way/neuroimaging-go-brrrr.git@v0.2.0`
-  - Provides: ARC dataset access via HuggingFace Hub
-  - Import as: `from bids_hub.datasets import arc`
-
 ## Documentation
 
 - `docs/research/` - Paper extraction and verified facts
