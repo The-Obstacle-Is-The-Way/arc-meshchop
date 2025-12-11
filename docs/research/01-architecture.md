@@ -53,8 +53,10 @@ Layer 10: → Conv3D (dilation=1)  → Output (2 classes: background, lesion)
 
 **Original MeshNet (2017):**
 ```
-1 → 1 → 2 → 4 → 8 → 16 → 1 → 1  (8 layers, only increasing)
+1 → 1 → 2 → 4 → 8 → 16 → 1 → 1  (8 layers)
 ```
+
+The original pattern increased dilation progressively but then **abruptly dropped** back to 1 in the final layers. The paper notes this "did not decrease the dilation rate in later layers" gradually, which "restricted the model's flexibility in refining segmentation boundaries."
 
 **Revisited MeshNet (This Paper):**
 ```
@@ -68,14 +70,16 @@ The symmetric pattern:
 
 ### Convolution Specifications
 
-| Property | Value |
-|----------|-------|
-| Kernel size | 3×3×3 |
-| Padding | Dilation-dependent (to maintain spatial dims) |
-| Activation | ReLU |
-| Normalization | Batch Normalization |
-| Input shape | 256×256×256×1 (single channel MRI) |
-| Output shape | 256×256×256×2 (binary: background/lesion) |
+| Property | Value | Source |
+|----------|-------|--------|
+| Kernel size | 3×3×3 | *Inferred from original MeshNet [9]* |
+| Padding | Dilation-dependent (to maintain spatial dims) | *Inferred: required to preserve 256³* |
+| Activation | ReLU | *Standard for MeshNet* |
+| Normalization | Batch Normalization | *Standard for MeshNet* |
+| Input shape | 256×256×256×1 (single channel MRI) | Paper: "256³ MRI volumes" |
+| Output shape | 256×256×256×2 (binary: background/lesion) | Paper: binary segmentation |
+
+> **Note:** The paper does not explicitly state kernel size or padding. Values are inferred from the original MeshNet architecture and the requirement to maintain spatial dimensions.
 
 ### Channel Count (X in MeshNet-X)
 

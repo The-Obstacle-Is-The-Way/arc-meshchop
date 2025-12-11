@@ -6,9 +6,12 @@
 
 ### Hardware Requirements
 
-- [ ] GPU with minimum 8 GB VRAM (MeshNet) or 80 GB (full benchmark)
-- [ ] 32-64 GB system RAM
-- [ ] 100+ GB storage for dataset and checkpoints
+**From paper:** NVIDIA A100 GPU with 80 GB memory
+
+**Estimated minimums (not in paper):**
+- [ ] GPU with ~4-8 GB VRAM (MeshNet only, FP16) or 80 GB (full benchmark)
+- [ ] 32+ GB system RAM (estimated)
+- [ ] 50+ GB storage for dataset and checkpoints (estimated)
 
 ### Software Dependencies
 
@@ -164,7 +167,7 @@ criterion = nn.CrossEntropyLoss(
 - [ ] OneCycleLR
 - [ ] Max LR: 0.001
 - [ ] Warmup: 1% of training (pct_start=0.01)
-- [ ] Cosine annealing
+- [ ] Gradual decrease after peak (paper does not specify annealing strategy; PyTorch default is cosine)
 
 ### Training Loop
 

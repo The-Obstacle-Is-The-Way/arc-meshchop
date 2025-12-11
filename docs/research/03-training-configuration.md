@@ -45,14 +45,13 @@ scheduler = torch.optim.lr_scheduler.OneCycleLR(
     max_lr=0.001,
     total_steps=num_epochs * steps_per_epoch,
     pct_start=0.01,  # 1% warmup
-    anneal_strategy='cos'
 )
 ```
 
-**OneCycleLR Behavior:**
-1. Start at `max_lr / 100` = 0.00001
-2. Warmup: Increase to `max_lr` = 0.001 over first 1% of training
-3. Annealing: Cosine decay back down to minimum
+**OneCycleLR Behavior (from paper):**
+1. Start at `1/100th of max LR` = 0.00001
+2. Warmup: "quickly increases to the maximum" over first 1% of training
+3. Annealing: "gradually decreases" back to minimum
 
 ```
 LR Schedule:
@@ -62,8 +61,10 @@ LR Schedule:
      /      \
     /        \_____ final
 start (0.00001)
-|←1%→|←----- 99% cosine decay -----→|
+|←1%→|←----- gradual decrease -----→|
 ```
+
+> **Note:** The paper says the LR "gradually decreases" but does not specify the annealing strategy. PyTorch's OneCycleLR uses cosine annealing by default.
 
 ---
 
@@ -94,17 +95,9 @@ MeshNet uses **hyperparameter optimization** rather than fixed values.
 
 **Note on fidelity:** ASHA uses epochs as fidelity - poor configs are stopped early at 15 epochs, promising ones continue to 50.
 
-### Optimized Values (Inferred from Results)
+### Optimized Values
 
-Based on the paper's best-performing MeshNet-26:
-
-| Hyperparameter | Likely Optimal Value |
-|----------------|---------------------|
-| Channels | 26 |
-| Learning rate | ~0.01-0.02 (higher than baselines) |
-| Weight decay | ~0.01-0.02 |
-| Background weight | ~0.5 |
-| Warmup percentage | 0.02 or 0.1 |
+> **⚠️ NOT DISCLOSED:** The paper does not disclose the actual optimized hyperparameter values found by the HPO search. Only the search space is provided. The final values would need to be determined by running the optimization or obtained from the authors.
 
 ### MeshNet Training with Restarts
 
@@ -295,23 +288,25 @@ while not experiment.is_done:
 
 ## Hardware Requirements
 
-### Minimum (for MeshNet)
+### From Paper
 
-| Resource | Requirement |
-|----------|-------------|
-| GPU | 8 GB VRAM (FP16) |
-| RAM | 32 GB |
-| Storage | 50 GB (dataset + checkpoints) |
+| Resource | Specification |
+|----------|---------------|
+| GPU | NVIDIA A100 (80 GB) |
 
-### Recommended (for baselines)
+> **Note:** The paper states "Each experiment was conducted on a single NVIDIA A100 GPU with 80 GB memory."
 
-| Resource | Requirement |
-|----------|-------------|
-| GPU | 80 GB VRAM (A100) or multiple GPUs |
-| RAM | 64 GB |
-| Storage | 100 GB |
+### Estimated Minimums (Not in Paper)
 
-**Note:** Larger models (MedNeXt, U-MAMBA) require layer checkpointing even on A100 80GB.
+The following are reasonable estimates for MeshNet-only reproduction, **not stated in the paper**:
+
+| Resource | Estimated Minimum | Rationale |
+|----------|-------------------|-----------|
+| GPU VRAM | ~4-8 GB (FP16) | MeshNet-26 has only 147K params |
+| System RAM | 32+ GB | For data loading |
+| Storage | 50+ GB | ARC dataset + checkpoints |
+
+**Note:** Larger baseline models (MedNeXt, U-MAMBA) require layer checkpointing even on A100 80GB.
 
 ---
 
