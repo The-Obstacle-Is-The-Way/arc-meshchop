@@ -220,6 +220,7 @@ module = [
     "omegaconf.*",
     "tensorboard.*",
     "sklearn.*",
+    "scipy.*",
 ]
 ignore_missing_imports = true
 
