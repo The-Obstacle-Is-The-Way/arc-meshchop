@@ -178,9 +178,9 @@ Most segmentation models use:
 
 ## Data Augmentation
 
-The paper does not explicitly detail augmentation strategies. For reproduction, consider:
+> **⚠️ NOT IN PAPER:** The paper does NOT mention any data augmentation. For strict reproduction of the paper's results, do NOT use augmentation.
 
-### Recommended Augmentations (Standard Practice)
+If you choose to add augmentation (which may change results), common options include:
 
 | Augmentation | Parameters | Purpose |
 |--------------|------------|---------|
@@ -188,9 +188,8 @@ The paper does not explicitly detail augmentation strategies. For reproduction, 
 | Random rotation | ±15° per axis | Rotation invariance |
 | Intensity scaling | ±10% | Scanner variability |
 | Gaussian noise | σ=0.01-0.05 | Noise robustness |
-| Elastic deformation | Optional | Shape variability |
 
-**Caution:** 3D augmentations are memory-intensive; apply on-the-fly with GPU.
+**⚠️ WARNING:** Adding augmentation is a deviation from the paper's methodology and may produce different results.
 
 ---
 

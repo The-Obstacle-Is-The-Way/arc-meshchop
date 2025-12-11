@@ -91,26 +91,32 @@ mri_convert input.nii output_256.nii \
 
 ### MeshNet Architecture
 
+**FROM PAPER:**
 - [ ] Implement 10-layer fully convolutional network
 - [ ] Implement dilation pattern: `[1, 2, 4, 8, 16, 16, 8, 4, 2, 1]`
-- [ ] Add BatchNorm after each conv (except last)
-- [ ] Add ReLU activation after each BatchNorm
-- [ ] Configure padding to maintain 256³ spatial dimensions
 - [ ] Support variable channel count (X in MeshNet-X)
 
+**⚠️ NOT IN PAPER - Inferred from original MeshNet [9]:**
+- [ ] Add BatchNorm after each conv (except last) - **verify with original**
+- [ ] Add ReLU activation after each BatchNorm - **verify with original**
+- [ ] Kernel size 3×3×3 - **verify with original**
+- [ ] Configure padding to maintain 256³ spatial dimensions
+
 ```python
-# Required layer specifications
-Layer 1:  Conv3d(1, X, 3, dilation=1, padding=1) + BN + ReLU
-Layer 2:  Conv3d(X, X, 3, dilation=2, padding=2) + BN + ReLU
-Layer 3:  Conv3d(X, X, 3, dilation=4, padding=4) + BN + ReLU
-Layer 4:  Conv3d(X, X, 3, dilation=8, padding=8) + BN + ReLU
-Layer 5:  Conv3d(X, X, 3, dilation=16, padding=16) + BN + ReLU
-Layer 6:  Conv3d(X, X, 3, dilation=16, padding=16) + BN + ReLU
-Layer 7:  Conv3d(X, X, 3, dilation=8, padding=8) + BN + ReLU
-Layer 8:  Conv3d(X, X, 3, dilation=4, padding=4) + BN + ReLU
-Layer 9:  Conv3d(X, X, 3, dilation=2, padding=2) + BN + ReLU
+# Layer specifications (⚠️ BN/ReLU/kernel_size NOT in this paper)
+Layer 1:  Conv3d(1, X, 3, dilation=1, padding=1) + [BN?] + [ReLU?]
+Layer 2:  Conv3d(X, X, 3, dilation=2, padding=2) + [BN?] + [ReLU?]
+Layer 3:  Conv3d(X, X, 3, dilation=4, padding=4) + [BN?] + [ReLU?]
+Layer 4:  Conv3d(X, X, 3, dilation=8, padding=8) + [BN?] + [ReLU?]
+Layer 5:  Conv3d(X, X, 3, dilation=16, padding=16) + [BN?] + [ReLU?]
+Layer 6:  Conv3d(X, X, 3, dilation=16, padding=16) + [BN?] + [ReLU?]
+Layer 7:  Conv3d(X, X, 3, dilation=8, padding=8) + [BN?] + [ReLU?]
+Layer 8:  Conv3d(X, X, 3, dilation=4, padding=4) + [BN?] + [ReLU?]
+Layer 9:  Conv3d(X, X, 3, dilation=2, padding=2) + [BN?] + [ReLU?]
 Layer 10: Conv3d(X, 2, 3, dilation=1, padding=1)  # Output layer
 ```
+
+> **VALIDATION:** Use parameter counts (5,682 / 56,194 / 147,474) to verify your architecture matches.
 
 ### Verify Parameter Counts
 
@@ -140,7 +146,8 @@ If reproducing full benchmark:
 - [ ] Implement PyTorch Dataset for ARC
 - [ ] Load full 256³ volumes (no patching)
 - [ ] Batch size = 1 (required for 256³ at full resolution)
-- [ ] Implement on-the-fly augmentation (optional)
+
+> **⚠️ NOT IN PAPER:** Data augmentation is NOT mentioned. For strict reproduction, do NOT use augmentation.
 
 ### Loss Function
 
@@ -204,8 +211,8 @@ criterion = nn.CrossEntropyLoss(
 ### Apply Optimized Hyperparameters
 
 - [ ] Train MeshNet with optimal hyperparameters on all outer folds
-- [ ] Use 10 random restarts per configuration
-- [ ] Select best model from restarts
+- [ ] **CRITICAL: Use 10 random restarts** - Paper explicitly states "we trained the model with 10 restarts"
+- [ ] Select best model from restarts based on validation performance
 
 ---
 

@@ -36,18 +36,22 @@ Traditional encoder-decoder models concatenate encoder features with decoder fea
 
 ### Layer Structure: 10-Layer Fully Convolutional Network
 
+**From Paper:** "10-layer structure with an adaptive dilation pattern"
+
 ```
-Layer 1:  Input → Conv3D (dilation=1)  → BatchNorm → ReLU
-Layer 2:  → Conv3D (dilation=2)  → BatchNorm → ReLU
-Layer 3:  → Conv3D (dilation=4)  → BatchNorm → ReLU
-Layer 4:  → Conv3D (dilation=8)  → BatchNorm → ReLU
-Layer 5:  → Conv3D (dilation=16) → BatchNorm → ReLU  [Maximum receptive field]
-Layer 6:  → Conv3D (dilation=16) → BatchNorm → ReLU
-Layer 7:  → Conv3D (dilation=8)  → BatchNorm → ReLU
-Layer 8:  → Conv3D (dilation=4)  → BatchNorm → ReLU
-Layer 9:  → Conv3D (dilation=2)  → BatchNorm → ReLU
+Layer 1:  Input → Conv3D (dilation=1)  → [?] → [?]
+Layer 2:  → Conv3D (dilation=2)  → [?] → [?]
+Layer 3:  → Conv3D (dilation=4)  → [?] → [?]
+Layer 4:  → Conv3D (dilation=8)  → [?] → [?]
+Layer 5:  → Conv3D (dilation=16) → [?] → [?]  [Maximum receptive field]
+Layer 6:  → Conv3D (dilation=16) → [?] → [?]
+Layer 7:  → Conv3D (dilation=8)  → [?] → [?]
+Layer 8:  → Conv3D (dilation=4)  → [?] → [?]
+Layer 9:  → Conv3D (dilation=2)  → [?] → [?]
 Layer 10: → Conv3D (dilation=1)  → Output (2 classes: background, lesion)
 ```
+
+> **⚠️ NOT IN PAPER:** The paper does NOT specify activation functions, normalization layers, or their ordering. The original MeshNet (2017) used BatchNorm + ReLU. For strict reproduction, consult the original MeshNet paper [9] or BrainChop implementation.
 
 ### Dilation Pattern (Key Innovation)
 
@@ -72,14 +76,14 @@ The symmetric pattern:
 
 | Property | Value | Source |
 |----------|-------|--------|
-| Kernel size | 3×3×3 | *Inferred from original MeshNet [9]* |
-| Padding | Dilation-dependent (to maintain spatial dims) | *Inferred: required to preserve 256³* |
-| Activation | ReLU | *Standard for MeshNet* |
-| Normalization | Batch Normalization | *Standard for MeshNet* |
-| Input shape | 256×256×256×1 (single channel MRI) | Paper: "256³ MRI volumes" |
-| Output shape | 256×256×256×2 (binary: background/lesion) | Paper: binary segmentation |
+| Kernel size | 3×3×3 | **⚠️ NOT IN PAPER** - inferred from original MeshNet [9] |
+| Padding | Dilation-dependent | **⚠️ NOT IN PAPER** - inferred to preserve 256³ |
+| Activation | ReLU | **⚠️ NOT IN PAPER** - from original MeshNet [9] |
+| Normalization | Batch Normalization | **⚠️ NOT IN PAPER** - from original MeshNet [9] |
+| Input shape | 256×256×256×1 | **FROM PAPER:** "256³ MRI volumes" |
+| Output shape | 256×256×256×2 | **FROM PAPER:** binary segmentation (background/lesion) |
 
-> **Note:** The paper does not explicitly state kernel size or padding. Values are inferred from the original MeshNet architecture and the requirement to maintain spatial dimensions.
+> **⚠️ CRITICAL:** The paper does NOT specify kernel size, padding, activation functions, or normalization. These details must be obtained from the original MeshNet paper [9] or the BrainChop reference implementation. The parameter counts reported (5,682 / 56,194 / 147,474) can be used to reverse-engineer the architecture.
 
 ### Channel Count (X in MeshNet-X)
 
@@ -155,11 +159,15 @@ Actual: 147,474 (some layers may differ in input channels)
 
 ## Key Implementation Notes
 
+**From Paper:**
+1. **Half-precision (FP16) training** is used for memory efficiency
+2. **Layer checkpointing** used for models that don't fit in GPU memory
+
+**Inferred (NOT in paper):**
 1. **Padding must be carefully calculated** to maintain 256³ output dimensions with varying dilations
-2. **Batch normalization is essential** for training stability with dilated convolutions
-3. **No dropout mentioned** in the paper - rely on data augmentation and proper regularization instead
-4. **Half-precision (FP16) training** is used for memory efficiency
-5. **Layer checkpointing** may be needed for larger models or limited GPU memory
+2. **Batch normalization** - assumed based on original MeshNet
+3. **No dropout mentioned** in this paper
+4. **No data augmentation mentioned** in this paper
 
 ---
 

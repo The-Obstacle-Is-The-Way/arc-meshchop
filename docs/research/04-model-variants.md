@@ -197,15 +197,27 @@ Potential variants to explore:
 
 ## PyTorch Implementation Skeleton
 
+> **⚠️ WARNING:** This implementation makes assumptions NOT stated in the paper:
+> - **Kernel size (3×3×3):** NOT in paper - inferred from original MeshNet
+> - **BatchNorm:** NOT in paper - inferred from original MeshNet
+> - **ReLU:** NOT in paper - inferred from original MeshNet
+> - **bias=True:** NOT in paper - assumption
+>
+> For strict reproduction, consult the original MeshNet paper [9] or BrainChop implementation.
+> The parameter counts (5,682 / 56,194 / 147,474) can verify if your architecture matches.
+
 ```python
 import torch
 import torch.nn as nn
 
 class MeshNet(nn.Module):
+    """
+    ⚠️ IMPLEMENTATION ASSUMPTIONS - See warning above
+    """
     def __init__(self, in_channels=1, num_classes=2, channels=26):
         super().__init__()
 
-        # Dilation pattern: encoder-decoder style
+        # FROM PAPER: dilation pattern
         dilations = [1, 2, 4, 8, 16, 16, 8, 4, 2, 1]
 
         layers = []
@@ -215,17 +227,19 @@ class MeshNet(nn.Module):
             is_last = (i == len(dilations) - 1)
             out_ch = num_classes if is_last else channels
 
+            # ⚠️ kernel_size=3 NOT in paper - from original MeshNet
             layers.append(
                 nn.Conv3d(
                     prev_channels, out_ch,
                     kernel_size=3,
                     padding=dilation,  # Same padding with dilation
                     dilation=dilation,
-                    bias=True
+                    bias=True  # ⚠️ NOT in paper
                 )
             )
 
             if not is_last:
+                # ⚠️ BatchNorm + ReLU NOT in paper - from original MeshNet
                 layers.append(nn.BatchNorm3d(out_ch))
                 layers.append(nn.ReLU(inplace=True))
 
@@ -237,12 +251,12 @@ class MeshNet(nn.Module):
         return self.network(x)
 
 
-# Instantiate variants
-meshnet_5 = MeshNet(channels=5)    # 5,682 params
-meshnet_16 = MeshNet(channels=16)  # 56,194 params
-meshnet_26 = MeshNet(channels=26)  # 147,474 params
+# Instantiate variants - verify parameter counts match paper
+meshnet_5 = MeshNet(channels=5)    # Paper: 5,682 params
+meshnet_16 = MeshNet(channels=16)  # Paper: 56,194 params
+meshnet_26 = MeshNet(channels=26)  # Paper: 147,474 params
 
-# Verify parameter counts
+# ⚠️ VERIFY: If counts don't match paper, architecture assumptions are wrong
 for name, model in [('MeshNet-5', meshnet_5), ('MeshNet-16', meshnet_16), ('MeshNet-26', meshnet_26)]:
     params = sum(p.numel() for p in model.parameters())
     print(f"{name}: {params:,} parameters")
