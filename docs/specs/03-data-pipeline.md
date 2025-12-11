@@ -1435,16 +1435,17 @@ print(f'Each outer fold has {len(splits.outer_folds[0][\"inner_folds\"])} inner 
 
 ### ARC Dataset Access
 
-The ARC dataset is accessed via **neuroimaging-go-brrrr** (pinned Git dependency):
+The ARC dataset is accessed via **HuggingFace datasets** (native packages):
 
 ```python
-# neuroimaging-go-brrrr is installed from GitHub, NOT from _references/
-# Dependency: git+https://github.com/The-Obstacle-Is-The-Way/neuroimaging-go-brrrr.git@v0.2.0
+# HuggingFace datasets for ARC data access
+# NOTE: neuroimaging-go-brrrr git dependency removed due to submodule issues
+# We implement our own data loading from hugging-science/arc-aphasia-bids
 
-from bids_hub.datasets import arc
+from datasets import load_dataset
 
 # Load ARC dataset from HuggingFace Hub
-dataset = arc.load_dataset()
+dataset = load_dataset("hugging-science/arc-aphasia-bids")
 ```
 
 HuggingFace Dataset: [hugging-science/arc-aphasia-bids](https://huggingface.co/datasets/hugging-science/arc-aphasia-bids)

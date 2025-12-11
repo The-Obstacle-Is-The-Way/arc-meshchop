@@ -827,14 +827,18 @@ Add to `pyproject.toml` under `[project.optional-dependencies]`:
 
 ```toml
 export = [
+    # Model export (Spec 06)
+    # NOTE: onnx-tf and tensorflowjs removed - they require TensorFlow which
+    # doesn't have ARM Mac wheels. Install manually on Linux for TFJS export.
     "onnx>=1.14.0",
     "onnxruntime>=1.16.0",
-    "onnxsim>=0.4.33",           # ONNX simplification
-    "onnxconverter-common>=1.13.0",  # FP16 conversion
-    "onnx-tf>=1.10.0",           # ONNX to TensorFlow (for TFJS path)
-    "tensorflowjs>=4.0.0",       # TensorFlow.js converter
 ]
 ```
+
+> **For TFJS export on Linux**, install additional packages manually:
+> ```bash
+> pip install onnxsim onnxconverter-common onnx-tf tensorflowjs
+> ```
 
 > **NOTE: TFJS Export Compatibility**
 > The ONNX → TensorFlow → TensorFlow.js conversion path requires validation for 3D convolution ops.
