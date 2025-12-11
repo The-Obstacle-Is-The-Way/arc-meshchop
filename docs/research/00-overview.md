@@ -4,6 +4,8 @@
 > **"State-of-the-Art Stroke Lesion Segmentation at 1/1000th of Parameters"**
 > Fedorov et al. (Emory University, Georgia State University, University of South Carolina)
 
+> **Documentation Standard:** These docs distinguish between facts stated in the paper and reasonable inferences. Items marked with "inferred" or "estimated" are not explicitly stated in the paper but are derived from standard practices or the original MeshNet architecture.
+
 ## Paper Summary
 
 This paper presents a revisited **MeshNet** architecture that achieves state-of-the-art stroke lesion segmentation using **only 147,474 parameters** - approximately 1/1000th the parameters of competing models like U-MAMBA (7.3M), MedNeXt (17.5M), and UNETR (95.8M).
