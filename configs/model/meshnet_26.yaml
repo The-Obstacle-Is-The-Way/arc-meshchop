@@ -1,0 +1,8 @@
+# MeshNet-26 configuration (147,474 parameters)
+# Target: 0.876 DICE
+
+name: meshnet_26
+channels: 26
+in_channels: 1
+num_classes: 2
+dropout_p: 0.0

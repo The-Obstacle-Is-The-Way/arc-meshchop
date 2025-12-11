@@ -1,0 +1,25 @@
+# Default configuration for ARC MeshChop
+# See docs/specs/ for full specification
+
+defaults:
+  - model: meshnet_26
+  - training: default
+  - _self_
+
+# Experiment settings
+experiment:
+  name: meshnet_stroke_segmentation
+  seed: 42
+
+# Data settings
+data:
+  root: data/
+  cache_dir: data/processed/
+  target_shape: [256, 256, 256]
+  target_spacing: [1.0, 1.0, 1.0]
+
+# Logging
+logging:
+  level: INFO
+  tensorboard: true
+  log_dir: logs/

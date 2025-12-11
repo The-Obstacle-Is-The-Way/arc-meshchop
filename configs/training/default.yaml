@@ -1,0 +1,31 @@
+# Training configuration from paper
+# "State-of-the-Art Stroke Lesion Segmentation at 1/1000th of Parameters"
+
+# Optimizer (FROM PAPER)
+optimizer:
+  name: adamw
+  lr: 0.001
+  weight_decay: 3e-5
+  eps: 1e-4
+
+# Scheduler (FROM PAPER)
+scheduler:
+  name: one_cycle_lr
+  max_lr: 0.001
+  pct_start: 0.01  # 1% warmup
+
+# Loss (FROM PAPER)
+loss:
+  name: cross_entropy
+  weight: [0.5, 1.0]  # [background, lesion]
+  label_smoothing: 0.01
+
+# Training settings (FROM PAPER)
+epochs: 50
+batch_size: 1
+precision: 16  # FP16 mixed precision
+
+# Cross-validation (FROM PAPER)
+cv:
+  num_outer_folds: 3
+  num_inner_folds: 3

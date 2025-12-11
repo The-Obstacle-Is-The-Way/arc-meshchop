@@ -224,3 +224,30 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# =============================================================================
+# ARC MeshChop Project-Specific
+# =============================================================================
+
+# Data (large files)
+data/raw/
+data/processed/
+*.nii
+*.nii.gz
+*.mgz
+
+# Model checkpoints
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+
+# Logs
+logs/
+tensorboard/
+
+# Secrets
+.env.local
+*.pem
+*.key
