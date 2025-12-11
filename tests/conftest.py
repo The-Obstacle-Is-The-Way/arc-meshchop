@@ -1,8 +1,15 @@
 """Shared pytest fixtures for arc-meshchop tests."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import numpy as np
 import pytest
 import torch
+
+if TYPE_CHECKING:
+    from arc_meshchop.models import MeshNet
 
 
 def _mps_is_functional() -> bool:
@@ -59,3 +66,32 @@ def small_volume() -> torch.Tensor:
 def tiny_volume() -> torch.Tensor:
     """Create a tiny 8³ volume for unit tests."""
     return torch.randn(1, 1, 8, 8, 8)
+
+
+# =============================================================================
+# Model Fixtures
+# =============================================================================
+
+
+@pytest.fixture
+def meshnet_5_model() -> MeshNet:
+    """Create MeshNet-5 model."""
+    from arc_meshchop.models import meshnet_5
+
+    return meshnet_5()
+
+
+@pytest.fixture
+def meshnet_16_model() -> MeshNet:
+    """Create MeshNet-16 model."""
+    from arc_meshchop.models import meshnet_16
+
+    return meshnet_16()
+
+
+@pytest.fixture
+def meshnet_26_model() -> MeshNet:
+    """Create MeshNet-26 model."""
+    from arc_meshchop.models import meshnet_26
+
+    return meshnet_26()
