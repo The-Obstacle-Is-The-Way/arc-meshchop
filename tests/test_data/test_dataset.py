@@ -276,7 +276,9 @@ class TestCreateDataloaders:
         )
 
         # Check sampler type indicates shuffling
+        from torch.utils.data import RandomSampler, SequentialSampler
+
         # RandomSampler is used when shuffle=True
-        assert train_loader.sampler is not None
+        assert isinstance(train_loader.sampler, RandomSampler)
         # Val loader should use sequential sampler
-        assert val_loader.sampler is not None
+        assert isinstance(val_loader.sampler, SequentialSampler)

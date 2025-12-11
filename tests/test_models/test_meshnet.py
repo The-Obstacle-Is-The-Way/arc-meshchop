@@ -204,9 +204,11 @@ class TestFactoryFunctions:
 
         model = create_meshnet("meshnet_16")
         assert model.channels == 16
+        assert model.count_parameters() == 56_194
 
         model = create_meshnet("meshnet_5")
         assert model.channels == 5
+        assert model.count_parameters() == 5_682
 
 
 class TestWeightInitialization:

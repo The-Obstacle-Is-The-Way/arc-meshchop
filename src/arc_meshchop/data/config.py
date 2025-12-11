@@ -61,6 +61,8 @@ class DataConfig:
 # Lesion size quintile boundaries (FROM PAPER Section 2)
 # Paper uses interval notation with exclusive lower bounds: "(203, 33619]"
 # means > 203 and ≤ 33,619. We use inclusive lower bounds for simplicity.
+# Note: Boundary values overlap between adjacent quintiles (e.g., 33619 in Q1 and Q2).
+# get_lesion_quintile() iterates in order, so boundary values match the earlier quintile.
 LESION_QUINTILES: dict[str, tuple[int, int]] = {
     "Q1": (203, 33_619),
     "Q2": (33_619, 67_891),
