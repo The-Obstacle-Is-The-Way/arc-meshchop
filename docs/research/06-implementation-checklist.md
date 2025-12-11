@@ -96,27 +96,31 @@ mri_convert input.nii output_256.nii \
 - [ ] Implement dilation pattern: `[1, 2, 4, 8, 16, 16, 8, 4, 2, 1]`
 - [ ] Support variable channel count (X in MeshNet-X)
 
-**⚠️ NOT IN PAPER - Inferred from original MeshNet [9]:**
-- [ ] Add BatchNorm after each conv (except last) - **verify with original**
-- [ ] Add ReLU activation after each BatchNorm - **verify with original**
-- [ ] Kernel size 3×3×3 - **verify with original**
-- [ ] Configure padding to maintain 256³ spatial dimensions
+**✅ VERIFIED from BrainChop reference (`_references/brainchop/py2tfjs/meshnet.py`):**
+- [ ] Kernel size: 3×3×3 (final layer: 1×1×1)
+- [ ] BatchNorm3d after each conv (except final)
+- [ ] ReLU activation after BatchNorm
+- [ ] Dropout3d optional
+- [ ] Padding = dilation to maintain 256³ dimensions
+- [ ] Bias = True (initialized to 0.0)
+- [ ] Xavier normal weight initialization
 
 ```python
-# Layer specifications (⚠️ BN/ReLU/kernel_size NOT in this paper)
-Layer 1:  Conv3d(1, X, 3, dilation=1, padding=1) + [BN?] + [ReLU?]
-Layer 2:  Conv3d(X, X, 3, dilation=2, padding=2) + [BN?] + [ReLU?]
-Layer 3:  Conv3d(X, X, 3, dilation=4, padding=4) + [BN?] + [ReLU?]
-Layer 4:  Conv3d(X, X, 3, dilation=8, padding=8) + [BN?] + [ReLU?]
-Layer 5:  Conv3d(X, X, 3, dilation=16, padding=16) + [BN?] + [ReLU?]
-Layer 6:  Conv3d(X, X, 3, dilation=16, padding=16) + [BN?] + [ReLU?]
-Layer 7:  Conv3d(X, X, 3, dilation=8, padding=8) + [BN?] + [ReLU?]
-Layer 8:  Conv3d(X, X, 3, dilation=4, padding=4) + [BN?] + [ReLU?]
-Layer 9:  Conv3d(X, X, 3, dilation=2, padding=2) + [BN?] + [ReLU?]
-Layer 10: Conv3d(X, 2, 3, dilation=1, padding=1)  # Output layer
+# Layer specifications (VERIFIED from BrainChop)
+Layer 1:  Conv3d(1, X, 3, d=1, p=1) + BN + ReLU
+Layer 2:  Conv3d(X, X, 3, d=2, p=2) + BN + ReLU
+Layer 3:  Conv3d(X, X, 3, d=4, p=4) + BN + ReLU
+Layer 4:  Conv3d(X, X, 3, d=8, p=8) + BN + ReLU
+Layer 5:  Conv3d(X, X, 3, d=16, p=16) + BN + ReLU
+Layer 6:  Conv3d(X, X, 3, d=16, p=16) + BN + ReLU
+Layer 7:  Conv3d(X, X, 3, d=8, p=8) + BN + ReLU
+Layer 8:  Conv3d(X, X, 3, d=4, p=4) + BN + ReLU
+Layer 9:  Conv3d(X, X, 3, d=2, p=2) + BN + ReLU
+Layer 10: Conv3d(X, 2, 1, d=1, p=0)  # Final: 1×1×1, no BN/ReLU
 ```
 
 > **VALIDATION:** Use parameter counts (5,682 / 56,194 / 147,474) to verify your architecture matches.
+> **⚠️ NOTE:** BrainChop uses OLD 8-layer pattern. Adapt to NEW 10-layer symmetric pattern above.
 
 ### Verify Parameter Counts
 

@@ -197,27 +197,36 @@ Potential variants to explore:
 
 ## PyTorch Implementation Skeleton
 
-> **⚠️ WARNING:** This implementation makes assumptions NOT stated in the paper:
-> - **Kernel size (3×3×3):** NOT in paper - inferred from original MeshNet
-> - **BatchNorm:** NOT in paper - inferred from original MeshNet
-> - **ReLU:** NOT in paper - inferred from original MeshNet
-> - **bias=True:** NOT in paper - assumption
+> **✅ VERIFIED** from BrainChop reference implementation (`_references/brainchop/py2tfjs/meshnet.py`):
+> - **Kernel size:** 3×3×3 (final layer 1×1×1)
+> - **BatchNorm3d:** After each conv except final
+> - **ReLU:** After BatchNorm
+> - **Dropout3d:** Optional
+> - **Bias:** True (initialized to 0.0)
+> - **Weight init:** Xavier normal
 >
-> For strict reproduction, consult the original MeshNet paper [9] or BrainChop implementation.
-> The parameter counts (5,682 / 56,194 / 147,474) can verify if your architecture matches.
+> **⚠️ NOTE:** BrainChop uses the OLD 8-layer pattern. This code implements the NEW 10-layer symmetric pattern from the paper.
 
 ```python
 import torch
 import torch.nn as nn
 
+def init_weights(model):
+    """Xavier normal init (from BrainChop reference)"""
+    for m in model.modules():
+        if isinstance(m, nn.Conv3d):
+            nn.init.xavier_normal_(m.weight, gain=nn.init.calculate_gain("relu"))
+            nn.init.constant_(m.bias, 0.0)
+
 class MeshNet(nn.Module):
     """
-    ⚠️ IMPLEMENTATION ASSUMPTIONS - See warning above
+    Revisited MeshNet with 10-layer symmetric dilation pattern.
+    Architecture details VERIFIED from BrainChop reference implementation.
     """
-    def __init__(self, in_channels=1, num_classes=2, channels=26):
+    def __init__(self, in_channels=1, num_classes=2, channels=26, dropout_p=0.0):
         super().__init__()
 
-        # FROM PAPER: dilation pattern
+        # FROM PAPER: NEW symmetric dilation pattern (10 layers)
         dilations = [1, 2, 4, 8, 16, 16, 8, 4, 2, 1]
 
         layers = []
@@ -227,25 +236,22 @@ class MeshNet(nn.Module):
             is_last = (i == len(dilations) - 1)
             out_ch = num_classes if is_last else channels
 
-            # ⚠️ kernel_size=3 NOT in paper - from original MeshNet
-            layers.append(
-                nn.Conv3d(
-                    prev_channels, out_ch,
-                    kernel_size=3,
-                    padding=dilation,  # Same padding with dilation
-                    dilation=dilation,
-                    bias=True  # ⚠️ NOT in paper
-                )
-            )
-
-            if not is_last:
-                # ⚠️ BatchNorm + ReLU NOT in paper - from original MeshNet
+            if is_last:
+                # Final layer: 1×1×1 conv, no BN/ReLU (VERIFIED from BrainChop)
+                layers.append(nn.Conv3d(prev_channels, out_ch, kernel_size=1, padding=0))
+            else:
+                # Conv → BN → ReLU → Dropout (VERIFIED from BrainChop)
+                layers.append(nn.Conv3d(prev_channels, out_ch, kernel_size=3,
+                                        padding=dilation, dilation=dilation, bias=True))
                 layers.append(nn.BatchNorm3d(out_ch))
                 layers.append(nn.ReLU(inplace=True))
+                if dropout_p > 0:
+                    layers.append(nn.Dropout3d(dropout_p))
 
             prev_channels = out_ch
 
         self.network = nn.Sequential(*layers)
+        init_weights(self.network)
 
     def forward(self, x):
         return self.network(x)
@@ -256,7 +262,7 @@ meshnet_5 = MeshNet(channels=5)    # Paper: 5,682 params
 meshnet_16 = MeshNet(channels=16)  # Paper: 56,194 params
 meshnet_26 = MeshNet(channels=26)  # Paper: 147,474 params
 
-# ⚠️ VERIFY: If counts don't match paper, architecture assumptions are wrong
+# VERIFY: Parameter counts should match paper exactly
 for name, model in [('MeshNet-5', meshnet_5), ('MeshNet-16', meshnet_16), ('MeshNet-26', meshnet_26)]:
     params = sum(p.numel() for p in model.parameters())
     print(f"{name}: {params:,} parameters")

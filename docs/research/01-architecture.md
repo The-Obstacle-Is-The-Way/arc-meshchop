@@ -39,19 +39,21 @@ Traditional encoder-decoder models concatenate encoder features with decoder fea
 **From Paper:** "10-layer structure with an adaptive dilation pattern"
 
 ```
-Layer 1:  Input → Conv3D (dilation=1)  → [?] → [?]
-Layer 2:  → Conv3D (dilation=2)  → [?] → [?]
-Layer 3:  → Conv3D (dilation=4)  → [?] → [?]
-Layer 4:  → Conv3D (dilation=8)  → [?] → [?]
-Layer 5:  → Conv3D (dilation=16) → [?] → [?]  [Maximum receptive field]
-Layer 6:  → Conv3D (dilation=16) → [?] → [?]
-Layer 7:  → Conv3D (dilation=8)  → [?] → [?]
-Layer 8:  → Conv3D (dilation=4)  → [?] → [?]
-Layer 9:  → Conv3D (dilation=2)  → [?] → [?]
-Layer 10: → Conv3D (dilation=1)  → Output (2 classes: background, lesion)
+Layer 1:  Input → Conv3D(k=3, d=1, p=1)  → BN → ReLU
+Layer 2:  → Conv3D(k=3, d=2, p=2)  → BN → ReLU
+Layer 3:  → Conv3D(k=3, d=4, p=4)  → BN → ReLU
+Layer 4:  → Conv3D(k=3, d=8, p=8)  → BN → ReLU
+Layer 5:  → Conv3D(k=3, d=16, p=16) → BN → ReLU  [Maximum receptive field]
+Layer 6:  → Conv3D(k=3, d=16, p=16) → BN → ReLU
+Layer 7:  → Conv3D(k=3, d=8, p=8)  → BN → ReLU
+Layer 8:  → Conv3D(k=3, d=4, p=4)  → BN → ReLU
+Layer 9:  → Conv3D(k=3, d=2, p=2)  → BN → ReLU
+Layer 10: → Conv3D(k=1, d=1, p=0)  → Output (2 classes)
+
+k=kernel_size, d=dilation, p=padding, BN=BatchNorm3d
 ```
 
-> **⚠️ NOT IN PAPER:** The paper does NOT specify activation functions, normalization layers, or their ordering. The original MeshNet (2017) used BatchNorm + ReLU. For strict reproduction, consult the original MeshNet paper [9] or BrainChop implementation.
+> **VERIFIED from BrainChop:** Each layer uses Conv3D → BatchNorm3d → ReLU → Dropout3d (optional). Final layer is Conv3D only (no activation). See `_references/brainchop/py2tfjs/meshnet.py` lines 141-148.
 
 ### Dilation Pattern (Key Innovation)
 
@@ -76,14 +78,17 @@ The symmetric pattern:
 
 | Property | Value | Source |
 |----------|-------|--------|
-| Kernel size | 3×3×3 | **⚠️ NOT IN PAPER** - inferred from original MeshNet [9] |
-| Padding | Dilation-dependent | **⚠️ NOT IN PAPER** - inferred to preserve 256³ |
-| Activation | ReLU | **⚠️ NOT IN PAPER** - from original MeshNet [9] |
-| Normalization | Batch Normalization | **⚠️ NOT IN PAPER** - from original MeshNet [9] |
+| Kernel size | 3×3×3 (final layer: 1×1×1) | **VERIFIED:** BrainChop `meshnet.py` lines 9-70 |
+| Padding | Dilation-dependent (padding=dilation) | **VERIFIED:** BrainChop `meshnet.py` |
+| Activation | ReLU | **VERIFIED:** BrainChop `meshnet.py` line 146 |
+| Normalization | BatchNorm3d | **VERIFIED:** BrainChop `meshnet.py` line 145 |
+| Dropout | Optional (Dropout3d) | **VERIFIED:** BrainChop `meshnet.py` line 147 |
+| Bias | True (init to 0.0) | **VERIFIED:** BrainChop `meshnet.py` line 156 |
+| Weight init | Xavier normal | **VERIFIED:** BrainChop `meshnet.py` line 155 |
 | Input shape | 256×256×256×1 | **FROM PAPER:** "256³ MRI volumes" |
 | Output shape | 256×256×256×2 | **FROM PAPER:** binary segmentation (background/lesion) |
 
-> **⚠️ CRITICAL:** The paper does NOT specify kernel size, padding, activation functions, or normalization. These details must be obtained from the original MeshNet paper [9] or the BrainChop reference implementation. The parameter counts reported (5,682 / 56,194 / 147,474) can be used to reverse-engineer the architecture.
+> **⚠️ NOTE:** The BrainChop reference implementation (`_references/brainchop/py2tfjs/meshnet.py`) uses the **ORIGINAL 8-layer** architecture with dilations `1,1,2,4,8,16,1,1`. The paper describes a **NEW 10-layer symmetric** architecture with dilations `1,2,4,8,16,16,8,4,2,1`. You must adapt the implementation to use the new pattern.
 
 ### Channel Count (X in MeshNet-X)
 
@@ -162,12 +167,16 @@ Actual: 147,474 (some layers may differ in input channels)
 **From Paper:**
 1. **Half-precision (FP16) training** is used for memory efficiency
 2. **Layer checkpointing** used for models that don't fit in GPU memory
+3. **No data augmentation mentioned** in this paper
 
-**Inferred (NOT in paper):**
-1. **Padding must be carefully calculated** to maintain 256³ output dimensions with varying dilations
-2. **Batch normalization** - assumed based on original MeshNet
-3. **No dropout mentioned** in this paper
-4. **No data augmentation mentioned** in this paper
+**Verified from BrainChop Reference:**
+1. **Padding = dilation** to maintain spatial dimensions
+2. **BatchNorm3d** after each conv (except final)
+3. **ReLU** activation after BatchNorm
+4. **Dropout3d** optional (parameter `dropout_p`)
+5. **Xavier normal** weight initialization
+6. **Bias initialized to 0.0**
+7. **Final layer: 1×1×1 conv** (no activation, no BatchNorm)
 
 ---
 

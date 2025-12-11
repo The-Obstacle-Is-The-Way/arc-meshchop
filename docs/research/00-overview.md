@@ -140,7 +140,7 @@ Dilation Pattern: 1 → 2 → 4 → 8 → 16 → 16 → 8 → 4 → 2 → 1
 
 ### Data
 
-- **Dataset:** ARC (224 T2-weighted MRI scans)
+- **Dataset:** ARC (230 subjects, 224 scans after filtering)
 - **Resolution:** 256³ @ 1mm isotropic
 - **Validation:** Nested 3-fold cross-validation
 - **Stratification:** Lesion size quintiles + acquisition type
