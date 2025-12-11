@@ -169,6 +169,48 @@ Dilation Pattern: 1 → 2 → 4 → 8 → 16 → 16 → 8 → 4 → 2 → 1
 
 ---
 
+## Implementation Strategy: BrainChop Relationship
+
+### Key Finding
+
+The BrainChop reference implementation (`_references/brainchop/py2tfjs/meshnet.py`) uses the **OLD 2017 MeshNet architecture**. This paper introduces an **improved 2024 architecture**. The difference is minimal but critical:
+
+| Component | BrainChop (2017) | This Paper (2024) |
+|-----------|------------------|-------------------|
+| Layers | 8 | 10 |
+| Dilation pattern | `1,1,2,4,8,16,1,1` | `1,2,4,8,16,16,8,4,2,1` |
+| Conv/BN/ReLU | ✅ Same | ✅ Same |
+| Kernel size | ✅ Same (3×3×3) | ✅ Same (3×3×3) |
+| Final layer | ✅ Same (1×1×1) | ✅ Same (1×1×1) |
+
+### What We Must Do
+
+**We need to implement our own MeshNet** based on the paper's 10-layer symmetric pattern. BrainChop provides the verified building blocks (Conv→BN→ReLU→Dropout, Xavier init, etc.), but we cannot use BrainChop's architecture as-is because:
+
+1. It uses the old 8-layer pattern
+2. It would NOT reproduce the paper's 0.876 DICE score
+3. The symmetric "encoder-decoder" dilation is the key innovation
+
+### The Change Is Minimal
+
+```python
+# OLD (BrainChop 2017) - DO NOT USE
+dilations = [1, 1, 2, 4, 8, 16, 1, 1]  # 8 layers, abrupt drop
+
+# NEW (This Paper 2024) - USE THIS
+dilations = [1, 2, 4, 8, 16, 16, 8, 4, 2, 1]  # 10 layers, symmetric
+```
+
+Everything else (Conv3D, BatchNorm3d, ReLU, Xavier init, final 1×1×1 layer) stays identical.
+
+### Recommendation
+
+✅ **Use BrainChop as a reference** for verified architecture details
+✅ **Implement our own MeshNet** with the new 10-layer pattern
+❌ **Do NOT use BrainChop's model directly** - wrong dilation pattern
+
+---
+
 ## Next Steps for Implementation
 
 1. **Read architecture doc** → Understand the model design
