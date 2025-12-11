@@ -174,9 +174,11 @@ def run_hpo(
 
         except Exception as e:
             logger.error("Trial %d failed: %s", trial_count, e)
+            # Report worst possible value (1.0) since we minimize -dice
+            # A failed trial should never be selected over a successful one
             experiment.observe(
                 trial,
-                [{"name": "dice", "type": "objective", "value": 0.0}],
+                [{"name": "dice", "type": "objective", "value": 1.0}],
             )
 
     logger.info("HPO complete. Best DICE: %.4f", best_dice)
