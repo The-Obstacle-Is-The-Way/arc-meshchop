@@ -39,6 +39,7 @@ def get_orion_search_space(config: HPOConfig) -> dict[str, str]:
     - weight_decay: loguniform(1e-4, 4e-2)
     - bg_weight: uniform(0, 1)
     - warmup_pct: choices([0.02, 0.1, 0.2])
+    - epochs: fidelity(15, 50)
 
     Args:
         config: HPO configuration.
@@ -52,6 +53,7 @@ def get_orion_search_space(config: HPOConfig) -> dict[str, str]:
         "weight_decay": f"loguniform({config.weight_decay_min}, {config.weight_decay_max})",
         "bg_weight": f"uniform({config.bg_weight_min}, {config.bg_weight_max})",
         "warmup_pct": f"choices({list(config.warmup_pct_choices)})",
+        "epochs": f"fidelity({config.min_epochs}, {config.max_epochs}, base=2)",
     }
 
 
