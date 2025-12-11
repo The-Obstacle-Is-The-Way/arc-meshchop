@@ -152,7 +152,7 @@ pandas = ">=2.0.0"
 scipy = ">=1.10.0"
 statsmodels = ">=0.14.0"  # Holm-Bonferroni correction
 hydra-core = ">=1.3.0"
-orion = ">=0.2.7"
+optuna = ">=3.5.0"  # Replaces orion (broken on Python 3.12)
 typer = ">=0.12.0"
 ```
 

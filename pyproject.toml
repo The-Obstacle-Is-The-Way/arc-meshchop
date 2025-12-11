@@ -59,8 +59,11 @@ dependencies = [
     "hydra-core>=1.3.0",
     "omegaconf>=2.3.0",
 
-    # Hyperparameter optimization
-    "orion>=0.2.7",
+    # Hyperparameter optimization (Phase 4)
+    # NOTE: orion>=0.2.7 removed from core deps - broken on Python 3.12
+    # (uses deprecated configparser.SafeConfigParser removed in 3.12)
+    # Use optuna instead, or install orion manually with Python 3.10/3.11
+    "optuna>=3.5.0",
 
     # Logging & tracking
     "tensorboard>=2.14.0",
@@ -212,7 +215,7 @@ exclude = [
 module = [
     "nibabel.*",
     "monai.*",
-    "orion.*",
+    "optuna.*",
     "hydra.*",
     "omegaconf.*",
     "tensorboard.*",

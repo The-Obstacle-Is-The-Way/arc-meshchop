@@ -136,8 +136,10 @@ dependencies = [
     "hydra-core>=1.3.0",
     "omegaconf>=2.3.0",
 
-    # Hyperparameter optimization
-    "orion>=0.2.7",
+    # Hyperparameter optimization (Phase 4)
+    # NOTE: orion>=0.2.7 removed - broken on Python 3.12
+    # (uses deprecated configparser.SafeConfigParser)
+    "optuna>=3.5.0",
 
     # Logging & tracking
     "tensorboard>=2.14.0",
@@ -289,10 +291,11 @@ exclude = [
 module = [
     "nibabel.*",
     "monai.*",
-    "orion.*",
+    "optuna.*",
     "hydra.*",
     "omegaconf.*",
     "tensorboard.*",
+    "sklearn.*",
 ]
 ignore_missing_imports = true
 
@@ -1250,7 +1253,7 @@ uv run arc-meshchop info      # Shows project info
 | pandas | >=2.0.0 | Data manipulation |
 | scipy | >=1.10.0 | Scientific computing |
 | hydra-core | >=1.3.0 | Configuration management |
-| orion | >=0.2.7 | Hyperparameter optimization |
+| optuna | >=3.5.0 | Hyperparameter optimization (replaces orion) |
 | tensorboard | >=2.14.0 | Training visualization |
 | typer | >=0.12.0 | CLI framework |
 
