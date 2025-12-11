@@ -845,6 +845,23 @@ export = [
 > If TFJS conversion fails, the ONNX export path remains available for Python/ONNX Runtime inference.
 > The paper does NOT specify a deployment format - ONNX is sufficient for most use cases.
 
+> **PLATFORM NOTE: Mac Apple Silicon (M1/M2/M3/M4)**
+>
+> TensorFlow and related packages (`onnx-tf`, `tensorflowjs`) do not have official ARM Mac wheels
+> with full 3D convolution support. This affects the TFJS export path on Mac.
+>
+> **Recommended workflow for Mac development:**
+> 1. **Train on Mac (MPS)** - Works with PyTorch MPS backend ✅
+> 2. **Export to ONNX on Mac** - Works everywhere ✅
+> 3. **Convert ONNX → TFJS on Linux** - Use Docker, GitHub Actions CI, or a Linux server
+>
+> **Alternatives:**
+> - Use ONNX Runtime Web (instead of TFJS) for browser deployment - no TensorFlow required
+> - Use `tensorflow-macos` + `tensorflow-metal` for Mac TensorFlow, but verify Conv3D support
+> - Run TFJS conversion in a Linux Docker container on Mac
+>
+> The ONNX export and ONNX Runtime inference work flawlessly on all platforms including Mac.
+
 ---
 
 ## 6. Verification Commands

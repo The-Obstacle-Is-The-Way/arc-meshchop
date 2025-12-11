@@ -15,6 +15,9 @@ The goal is to achieve 0.876 DICE score with only 147K parameters on the ARC dat
 # Install dependencies
 uv sync --all-extras
 
+# Check device availability (CUDA/MPS/CPU)
+uv run arc-meshchop info
+
 # Run tests
 uv run pytest
 
@@ -65,8 +68,23 @@ Final layer: Conv3D(k=1) → Output (2 classes)
 - **Optimizer:** AdamW (lr=0.001, weight_decay=3e-5, eps=1e-4)
 - **Scheduler:** OneCycleLR (1% warmup)
 - **Loss:** CrossEntropy(weights=[0.5, 1.0], label_smoothing=0.01)
-- **Precision:** FP16 (half-precision)
+- **Precision:** FP16 on CUDA, FP32 on MPS/CPU (auto-detected)
 - **Batch size:** 1 (full 256³ volumes)
+
+### Cross-Platform Support
+
+MeshNet is small enough (147K params) to train on any platform:
+
+| Platform | Device | Precision | Notes |
+|----------|--------|-----------|-------|
+| Linux/Windows | CUDA | FP16 | Full support |
+| Mac (M1/M2/M3/M4) | MPS | FP32 | Auto-fallback, still fast |
+| Any | CPU | FP32 | Fallback |
+
+**Key utilities:**
+- `from arc_meshchop.utils.device import get_device` - Auto-detects best device
+- Training uses `torch.amp` (not `torch.cuda.amp`) for cross-platform AMP
+- `GradScaler` disabled on MPS/CPU (not needed)
 
 ## Testing
 

@@ -373,7 +373,7 @@ from typing import TYPE_CHECKING
 
 import torch
 import torch.nn as nn
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast
 from tqdm import tqdm
 
 from arc_meshchop.training.config import TrainingConfig
@@ -421,9 +421,13 @@ class Trainer:
             config: Training configuration.
             device: Device to train on (default: auto-detect).
         """
+        from arc_meshchop.utils.device import get_device
+
         self.model = model
         self.config = config
-        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        # Cross-platform device selection (CUDA > MPS > CPU)
+        self.device = device or get_device()
 
         # Move model to device
         self.model = self.model.to(self.device)
@@ -443,8 +447,25 @@ class Trainer:
             eps=config.eps,
         )
 
-        # GradScaler for FP16 training
-        self.scaler = GradScaler(enabled=config.use_fp16)
+        # Platform-aware mixed precision setup
+        # CUDA: Full FP16 support with GradScaler
+        # MPS: Limited FP16 - use FP32 (still fast due to unified memory)
+        # CPU: No mixed precision (FP32)
+        if self.device.type == "cuda":
+            self.scaler = GradScaler("cuda", enabled=config.use_fp16)
+            self._amp_dtype = torch.float16
+            self._amp_enabled = config.use_fp16
+        elif self.device.type == "mps":
+            # MPS has limited FP16 support - disable scaling
+            self.scaler = GradScaler("cpu", enabled=False)
+            self._amp_dtype = torch.float32
+            self._amp_enabled = False
+            if config.use_fp16:
+                logger.warning("FP16 not fully supported on MPS, using FP32")
+        else:
+            self.scaler = GradScaler("cpu", enabled=False)
+            self._amp_dtype = torch.float32
+            self._amp_enabled = False
 
         # Training state
         self.state = TrainingState(
@@ -548,10 +569,14 @@ class Trainer:
             images = images.to(self.device)
             masks = masks.to(self.device)
 
-            # Forward pass with FP16
+            # Forward pass with platform-aware mixed precision
             self.optimizer.zero_grad()
 
-            with autocast(enabled=self.config.use_fp16):
+            with autocast(
+                device_type=self.device.type,
+                dtype=self._amp_dtype,
+                enabled=self._amp_enabled,
+            ):
                 outputs = self.model(images)
                 loss = self.loss_fn(outputs, masks)
 
@@ -599,7 +624,11 @@ class Trainer:
             images = images.to(self.device)
             masks = masks.to(self.device)
 
-            with autocast(enabled=self.config.use_fp16):
+            with autocast(
+                device_type=self.device.type,
+                dtype=self._amp_dtype,
+                enabled=self._amp_enabled,
+            ):
                 outputs = self.model(images)
                 loss = self.loss_fn(outputs, masks)
 

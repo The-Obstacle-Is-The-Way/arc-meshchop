@@ -6,6 +6,19 @@
 
 ---
 
+> **NOTE: Integration with Core Specs**
+>
+> The cross-platform patterns from this spec have been integrated into the core specs:
+> - **Spec 01** - Device utility (`src/arc_meshchop/utils/device.py`) and test fixtures
+> - **Spec 03** - Platform-aware `pin_memory` in DataLoaders
+> - **Spec 04** - Platform-aware trainer (`torch.amp` instead of `torch.cuda.amp`)
+> - **Spec 05** - Platform-aware evaluator
+> - **Spec 06** - Mac/TFJS compatibility notes
+>
+> This spec serves as the reference documentation for cross-platform behavior.
+
+---
+
 ## Overview
 
 This spec ensures the arc-meshchop project runs seamlessly across:
@@ -71,9 +84,11 @@ def get_device(preferred: DeviceType | None = None) -> torch.device:
         return device
 
     if preferred == "mps" and torch.backends.mps.is_available():
-        device = torch.device("mps")
-        logger.info("Using MPS device (Apple Silicon)")
-        return device
+        if _mps_is_functional():
+            device = torch.device("mps")
+            logger.info("Using MPS device (Apple Silicon)")
+            return device
+        logger.warning("MPS requested but not functional, falling back")
 
     if preferred == "cpu":
         logger.info("Using CPU device (requested)")

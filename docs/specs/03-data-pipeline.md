@@ -836,6 +836,7 @@ def create_dataloaders(
     val_dataset: ARCDataset,
     batch_size: int = 1,
     num_workers: int = 4,
+    pin_memory: bool | None = None,
 ) -> tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
     """Create training and validation dataloaders.
 
@@ -847,16 +848,24 @@ def create_dataloaders(
         val_dataset: Validation dataset.
         batch_size: Batch size (default 1 for full volumes).
         num_workers: Number of data loading workers.
+        pin_memory: Pin memory for faster GPU transfer.
+            If None, auto-detect (True for CUDA, False for MPS/CPU).
+            MPS generates warnings with pin_memory=True.
 
     Returns:
         Tuple of (train_loader, val_loader).
     """
+    # Auto-detect pin_memory: only beneficial for CUDA
+    # MPS and CPU don't benefit and MPS may generate warnings
+    if pin_memory is None:
+        pin_memory = torch.cuda.is_available()
+
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
-        pin_memory=True,
+        pin_memory=pin_memory,
     )
 
     val_loader = torch.utils.data.DataLoader(
@@ -864,7 +873,7 @@ def create_dataloaders(
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
-        pin_memory=True,
+        pin_memory=pin_memory,
     )
 
     return train_loader, val_loader

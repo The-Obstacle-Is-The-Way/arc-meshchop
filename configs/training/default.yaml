@@ -23,7 +23,7 @@ loss:
 # Training settings (FROM PAPER)
 epochs: 50
 batch_size: 1
-precision: 16  # FP16 mixed precision
+precision: 16  # FP16 mixed precision (CUDA only; MPS/CPU auto-fallback to FP32)
 
 # Cross-validation (FROM PAPER)
 cv:

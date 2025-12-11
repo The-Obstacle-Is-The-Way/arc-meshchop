@@ -605,7 +605,10 @@ class Evaluator:
         Args:
             device: Device for inference (default: auto-detect).
         """
-        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        from arc_meshchop.utils.device import get_device
+
+        # Cross-platform device selection (CUDA > MPS > CPU)
+        self.device = device or get_device()
         self.metrics_calculator = SegmentationMetrics()
 
     @torch.no_grad()
@@ -638,9 +641,10 @@ class Evaluator:
         for images, masks in tqdm(dataloader, desc=f"Evaluating {model_name}"):
             images = images.to(self.device)
 
-            # Inference
-            if use_fp16:
-                with torch.cuda.amp.autocast():
+            # Inference with platform-aware mixed precision
+            # Only use FP16 autocast on CUDA (MPS/CPU don't benefit)
+            if use_fp16 and self.device.type == "cuda":
+                with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
                     outputs = model(images)
             else:
                 outputs = model(images)

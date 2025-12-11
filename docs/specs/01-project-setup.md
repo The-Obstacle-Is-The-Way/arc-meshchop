@@ -37,8 +37,11 @@ arc-meshchop/
 │       │   └── __init__.py
 │       ├── evaluation/           # Metrics & evaluation (Spec 05)
 │       │   └── __init__.py
-│       └── export/               # Model export (Spec 06)
-│           └── __init__.py
+│       ├── export/               # Model export (Spec 06)
+│       │   └── __init__.py
+│       └── utils/                # Shared utilities (cross-platform)
+│           ├── __init__.py
+│           └── device.py         # Device detection (CUDA/MPS/CPU)
 ├── tests/
 │   ├── conftest.py               # Shared pytest fixtures
 │   ├── test_models/
@@ -107,8 +110,10 @@ classifiers = [
 
 dependencies = [
     # Core ML
-    "torch>=2.0.0",
-    "torchvision>=0.15.0",
+    # NOTE: torch>=2.4.0 required for torch.amp.GradScaler(device, ...) API
+    # Earlier versions only support torch.cuda.amp.GradScaler()
+    "torch>=2.4.0",
+    "torchvision>=0.19.0",  # Matches torch 2.4+
 
     # Medical imaging
     "nibabel>=5.0.0",
@@ -802,6 +807,152 @@ Tests use TDD approach with synthetic data:
 
 ## 7. Initial Source Files
 
+### `src/arc_meshchop/utils/device.py`
+
+```python
+"""Cross-platform device selection for PyTorch.
+
+Supports:
+- CUDA (Linux, Windows/WSL2)
+- MPS (Mac Apple Silicon)
+- CPU (fallback)
+
+References:
+- https://pytorch.org/docs/stable/notes/mps.html
+- https://developer.apple.com/metal/pytorch/
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+from typing import Literal
+
+import torch
+
+logger = logging.getLogger(__name__)
+
+DeviceType = Literal["cuda", "mps", "cpu"]
+
+
+def get_device(preferred: DeviceType | None = None) -> torch.device:
+    """Get the best available device for training/inference.
+
+    Priority:
+    1. User-specified preference (if available)
+    2. CUDA (if available)
+    3. MPS (if available, Mac Apple Silicon)
+    4. CPU (fallback)
+
+    Args:
+        preferred: Preferred device type. If not available, falls back.
+
+    Returns:
+        torch.device for training/inference.
+    """
+    if preferred == "cuda" and torch.cuda.is_available():
+        device = torch.device("cuda")
+        logger.info("Using CUDA device: %s", torch.cuda.get_device_name(0))
+        return device
+
+    if preferred == "mps" and torch.backends.mps.is_available():
+        if _mps_is_functional():
+            device = torch.device("mps")
+            logger.info("Using MPS device (Apple Silicon)")
+            return device
+        logger.warning("MPS requested but not functional, falling back")
+
+    if preferred == "cpu":
+        logger.info("Using CPU device (requested)")
+        return torch.device("cpu")
+
+    # Auto-detect best available
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        logger.info("Auto-selected CUDA device: %s", torch.cuda.get_device_name(0))
+        return device
+
+    if torch.backends.mps.is_available():
+        if _mps_is_functional():
+            device = torch.device("mps")
+            logger.info("Auto-selected MPS device (Apple Silicon)")
+            return device
+        logger.warning("MPS available but not functional, falling back to CPU")
+
+    logger.info("Using CPU device (no GPU available)")
+    return torch.device("cpu")
+
+
+def _mps_is_functional() -> bool:
+    """Check if MPS backend actually works.
+
+    Some PyTorch operations are not implemented for MPS.
+    This performs a quick sanity check.
+    """
+    try:
+        x = torch.ones(2, 2, device="mps")
+        y = x + x
+        _ = y.cpu()  # Ensure we can move back to CPU
+        return True
+    except Exception:
+        return False
+
+
+def get_device_info() -> dict[str, str | bool | int]:
+    """Get information about available devices.
+
+    Returns:
+        Dictionary with device availability and details.
+    """
+    info: dict[str, str | bool | int] = {
+        "cuda_available": torch.cuda.is_available(),
+        "mps_available": torch.backends.mps.is_available(),
+        "cpu_count": os.cpu_count() or 1,
+    }
+
+    if torch.cuda.is_available():
+        info["cuda_device_name"] = torch.cuda.get_device_name(0)
+        info["cuda_device_count"] = torch.cuda.device_count()
+        info["cuda_memory_gb"] = round(
+            torch.cuda.get_device_properties(0).total_memory / 1e9, 2
+        )
+
+    if torch.backends.mps.is_available():
+        info["mps_functional"] = _mps_is_functional()
+
+    return info
+
+
+def enable_mps_fallback() -> None:
+    """Enable CPU fallback for unsupported MPS operations.
+
+    Set PYTORCH_ENABLE_MPS_FALLBACK=1 environment variable.
+    This allows training to continue when MPS doesn't support an op.
+    """
+    os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+    logger.info("Enabled MPS fallback to CPU for unsupported operations")
+```
+
+### `src/arc_meshchop/utils/__init__.py`
+
+```python
+"""Utility functions for cross-platform support."""
+
+from arc_meshchop.utils.device import (
+    DeviceType,
+    enable_mps_fallback,
+    get_device,
+    get_device_info,
+)
+
+__all__ = [
+    "DeviceType",
+    "enable_mps_fallback",
+    "get_device",
+    "get_device_info",
+]
+```
+
 ### `src/arc_meshchop/__init__.py`
 
 ```python
@@ -823,6 +974,7 @@ __version__ = "0.1.0"
 
 import typer
 from rich.console import Console
+from rich.table import Table
 
 app = typer.Typer(
     name="arc-meshchop",
@@ -842,7 +994,12 @@ def version() -> None:
 
 @app.command()
 def info() -> None:
-    """Show project information."""
+    """Show project and device information."""
+    import torch
+
+    from arc_meshchop.utils.device import get_device_info
+
+    # Project info
     console.print("[bold]ARC MeshChop[/bold]")
     console.print("MeshNet stroke lesion segmentation - paper replication")
     console.print()
@@ -854,6 +1011,28 @@ def info() -> None:
     console.print("  MeshNet-5:  5,682 params  (0.848 DICE)")
     console.print("  MeshNet-16: 56,194 params (0.873 DICE)")
     console.print("  MeshNet-26: 147,474 params (0.876 DICE)")
+    console.print()
+
+    # Device info
+    device_info = get_device_info()
+
+    table = Table(title="Device Information")
+    table.add_column("Property", style="cyan")
+    table.add_column("Value", style="green")
+
+    table.add_row("PyTorch Version", torch.__version__)
+    table.add_row("CUDA Available", str(device_info["cuda_available"]))
+    table.add_row("MPS Available", str(device_info["mps_available"]))
+    table.add_row("CPU Cores", str(device_info["cpu_count"]))
+
+    if device_info["cuda_available"]:
+        table.add_row("CUDA Device", str(device_info.get("cuda_device_name", "N/A")))
+        table.add_row("CUDA Memory (GB)", str(device_info.get("cuda_memory_gb", "N/A")))
+
+    if device_info["mps_available"]:
+        table.add_row("MPS Functional", str(device_info.get("mps_functional", "N/A")))
+
+    console.print(table)
 
 
 if __name__ == "__main__":
@@ -870,10 +1049,33 @@ import pytest
 import torch
 
 
+def _mps_is_functional() -> bool:
+    """Check if MPS backend actually works (some ops may not be supported)."""
+    try:
+        x = torch.ones(2, 2, device="mps")
+        _ = (x + x).cpu()
+        return True
+    except Exception:
+        return False
+
+
 @pytest.fixture
 def device() -> torch.device:
-    """Get available device (GPU if available, else CPU)."""
-    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    """Get available device (CUDA, MPS, or CPU).
+
+    Priority:
+    1. CUDA (Linux, Windows/WSL2)
+    2. MPS (Mac Apple Silicon, if functional)
+    3. CPU (fallback)
+
+    Note: Inline implementation to avoid import dependencies during test setup.
+    Mirrors logic from arc_meshchop.utils.device.get_device().
+    """
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    if torch.backends.mps.is_available() and _mps_is_functional():
+        return torch.device("mps")
+    return torch.device("cpu")
 
 
 @pytest.fixture
