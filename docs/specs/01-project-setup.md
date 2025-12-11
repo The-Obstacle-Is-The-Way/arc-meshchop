@@ -121,6 +121,7 @@ dependencies = [
     "numpy>=1.24.0",
     "pandas>=2.0.0",
     "scipy>=1.10.0",
+    "statsmodels>=0.14.0",  # Holm-Bonferroni correction for statistical testing
 
     # Configuration
     "hydra-core>=1.3.0",

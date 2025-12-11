@@ -408,8 +408,6 @@ def holm_bonferroni_correction(
     Returns:
         Tuple of (corrected_p_values, is_significant_list).
     """
-    from scipy.stats import false_discovery_control
-
     # Use statsmodels if available (more complete implementation)
     try:
         from statsmodels.stats.multitest import multipletests

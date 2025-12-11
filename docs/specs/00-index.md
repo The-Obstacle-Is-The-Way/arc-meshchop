@@ -149,6 +149,7 @@ monai = ">=1.3.0"
 numpy = ">=1.24.0"
 pandas = ">=2.0.0"
 scipy = ">=1.10.0"
+statsmodels = ">=0.14.0"  # Holm-Bonferroni correction
 hydra-core = ">=1.3.0"
 orion = ">=0.2.7"
 typer = ">=0.12.0"
