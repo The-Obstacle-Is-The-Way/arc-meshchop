@@ -58,14 +58,27 @@ Where **X** = number of channels (5, 16, or 26)
 
 ### 1.4 Component Details
 
-**VERIFIED from BrainChop reference** (local read-only copy in `_references/brainchop/`):
+> **NOTE: Implementation Details NOT Specified in Paper**
+> The paper only describes the dilation pattern and layer count. The following details are
+> **inferred from the BrainChop reference implementation**, not explicitly stated in the paper:
+> - Normalization: BatchNorm3d (not GroupNorm, LayerNorm, etc.)
+> - Activation: ReLU (not LeakyReLU, GELU, etc.)
+> - Padding: padding = dilation (to maintain spatial dimensions)
+> - Bias: Conv3d bias enabled
+>
+> These choices are standard for convolutional segmentation networks and match BrainChop's
+> verified implementation. If metrics don't reproduce, these are candidates for investigation.
 
-| Component | Specification |
-|-----------|---------------|
-| Conv3D bias | True (initialized to 0.0) |
-| Weight init | Xavier normal with gain=relu |
-| BatchNorm | affine=True, track_running_stats=True |
-| Dropout | Optional (Dropout3d, default p=0.0) |
+**INFERRED from BrainChop reference** (local read-only copy in `_references/brainchop/`):
+
+| Component | Specification | Source |
+|-----------|---------------|--------|
+| Conv3D bias | True (initialized to 0.0) | BrainChop |
+| Weight init | Xavier normal with gain=relu | BrainChop |
+| BatchNorm | affine=True, track_running_stats=True | BrainChop |
+| Dropout | Optional (Dropout3d, default p=0.0) | BrainChop |
+| Activation | ReLU (inplace=True) | BrainChop |
+| Padding | padding = dilation for k=3 layers | BrainChop |
 
 ---
 

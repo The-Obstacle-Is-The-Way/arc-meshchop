@@ -831,10 +831,19 @@ export = [
     "onnxruntime>=1.16.0",
     "onnxsim>=0.4.33",           # ONNX simplification
     "onnxconverter-common>=1.13.0",  # FP16 conversion
-    "onnx-tf>=1.10.0",           # ONNX to TensorFlow
+    "onnx-tf>=1.10.0",           # ONNX to TensorFlow (for TFJS path)
     "tensorflowjs>=4.0.0",       # TensorFlow.js converter
 ]
 ```
+
+> **NOTE: TFJS Export Compatibility**
+> The ONNX → TensorFlow → TensorFlow.js conversion path requires validation for 3D convolution ops.
+> - `onnx-tf` must support Conv3D with dilation (verify with installed version)
+> - TensorFlow.js must support the 3D ops in WebGL backend
+> - Test the full export pipeline before relying on TFJS deployment
+>
+> If TFJS conversion fails, the ONNX export path remains available for Python/ONNX Runtime inference.
+> The paper does NOT specify a deployment format - ONNX is sufficient for most use cases.
 
 ---
 

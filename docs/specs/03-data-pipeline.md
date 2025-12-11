@@ -62,13 +62,27 @@ This spec covers:
 | **Final dataset size** | **224 scans** | Paper Section 2 |
 | Lesion masks | Available | Paper Section 2 |
 
+> **NOTE: Dataset Source**
+> The paper references OpenNeuro as the data source: "data made available in open access via OpenNeuro".
+> The HuggingFace dataset `hugging-science/arc-aphasia-bids` is a mirror of the OpenNeuro ARC release.
+> Before training, verify the HF dataset contains the same 230 subjects with 224 SPACE scans and expert masks.
+
 ### 2.2 Preprocessing (FROM PAPER)
 
-| Step | Specification | Tool |
-|------|---------------|------|
-| Resampling | 256×256×256 @ 1mm isotropic | `mri_convert` |
-| Normalization | 0-1 min-max scaling | Custom |
-| Orientation | Standard RAS+ | `mri_convert --conform` |
+| Step | Specification | Tool (Paper) | Tool (This Implementation) |
+|------|---------------|--------------|----------------------------|
+| Resampling | 256×256×256 @ 1mm isotropic | `mri_convert` | SciPy `ndimage.zoom` |
+| Normalization | 0-1 min-max scaling | Custom | Custom |
+| Orientation | Standard RAS+ | `mri_convert --conform` | NiBabel (assumed RAS+) |
+
+> **NOTE: Preprocessing Toolchain**
+> The paper uses FreeSurfer's `mri_convert` for resampling. This implementation uses SciPy as a
+> Python-native equivalent. The outputs should be numerically equivalent for:
+> - Linear interpolation (order=1) for images
+> - Nearest-neighbor (order=0) for masks
+>
+> **IMPORTANT**: The paper does NOT mention skull stripping or MNI registration.
+> Only resampling to 256³@1mm and 0-1 normalization are required.
 
 ### 2.3 Data Splits (FROM PAPER)
 
@@ -81,12 +95,17 @@ This spec covers:
 
 ### 2.4 Lesion Size Quintiles (FROM PAPER)
 
-| Quintile | Voxel Range | Description |
-|----------|-------------|-------------|
-| Q1 | 203 - 33,619 | Small |
-| Q2 | 33,619 - 67,891 | Small-medium |
-| Q3 | 67,891 - 128,314 | Medium |
-| Q4 | 128,314 - 363,885 | Large |
+| Quintile | Voxel Range (Paper Notation) | Description |
+|----------|------------------------------|-------------|
+| Q1 | (203, 33,619] | Small |
+| Q2 | (33,619, 67,891] | Small-medium |
+| Q3 | (67,891, 128,314] | Medium |
+| Q4 | (128,314, 363,885] | Large |
+
+> **NOTE: Quintile Boundary Notation**
+> The paper uses interval notation with exclusive lower bounds: "(203, 33619]" means > 203 and ≤ 33,619.
+> The implementation uses inclusive lower bounds for simplicity. Edge cases (exactly on boundary)
+> are assigned to the lower quintile, which has minimal impact since exact boundary values are rare.
 
 ---
 

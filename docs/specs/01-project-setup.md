@@ -164,7 +164,10 @@ export = [
     # Model export (Spec 06)
     "onnx>=1.14.0",
     "onnxruntime>=1.16.0",
-    "tf2onnx>=1.16.0",
+    "onnxsim>=0.4.33",           # ONNX graph simplification
+    "onnxconverter-common>=1.13.0",  # FP16 quantization
+    "onnx-tf>=1.10.0",           # ONNX to TensorFlow (for TFJS path)
+    "tensorflowjs>=4.0.0",       # TensorFlow.js converter
 ]
 
 huggingface = [
