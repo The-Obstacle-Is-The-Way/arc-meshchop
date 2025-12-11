@@ -143,7 +143,11 @@ class TestArchitecture:
             assert layer.kernel_size == (3, 3, 3), f"Layer {i + 1} kernel size mismatch"
 
     def test_padding_equals_dilation(self) -> None:
-        """Verify padding = dilation for 3x3x3 layers (maintains resolution)."""
+        """Verify padding = dilation for 3x3x3 layers (maintains resolution).
+
+        This enforces the full Conv3D(k=3, p=d, d=d) spec where both padding
+        and dilation must match the pattern.
+        """
         model = MeshNet(channels=16)
 
         conv_layers = [m for m in model.modules() if isinstance(m, torch.nn.Conv3d)]
@@ -152,7 +156,9 @@ class TestArchitecture:
             zip(conv_layers[:-1], DILATION_PATTERN[:-1], strict=True)
         ):
             expected_padding = (dilation, dilation, dilation)
+            expected_dilation = (dilation, dilation, dilation)
             assert layer.padding == expected_padding, f"Layer {i + 1} padding mismatch"
+            assert layer.dilation == expected_dilation, f"Layer {i + 1} dilation mismatch"
 
     def test_no_batchnorm_after_final_layer(self) -> None:
         """Verify no BatchNorm after final 1x1x1 conv."""
