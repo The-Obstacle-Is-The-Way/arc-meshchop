@@ -1,1 +1,1 @@
-"""Tests for evaluation metrics."""
+"""Tests for evaluation module."""
