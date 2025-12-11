@@ -33,8 +33,10 @@ classifiers = [
 
 dependencies = [
     # Core ML
-    "torch>=2.0.0",
-    "torchvision>=0.15.0",
+    # NOTE: torch>=2.4.0 required for torch.amp.GradScaler(device, ...) API
+    # Earlier versions only support torch.cuda.amp.GradScaler()
+    "torch>=2.4.0",
+    "torchvision>=0.19.0",  # Matches torch 2.4+
 
     # Medical imaging
     "nibabel>=5.0.0",
