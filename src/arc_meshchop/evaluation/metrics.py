@@ -195,21 +195,11 @@ class SegmentationMetrics:
         Returns:
             Dictionary with mean dice, avd, mcc values.
         """
-        dice_scores: list[float] = []
-        avd_scores: list[float] = []
-        mcc_scores: list[float] = []
-
-        batch_size = preds.shape[0]
-        for i in range(batch_size):
-            metrics = self.compute_single(preds[i], targets[i])
-            dice_scores.append(metrics["dice"])
-            avd_scores.append(metrics["avd"])
-            mcc_scores.append(metrics["mcc"])
-
+        stats = self.compute_with_stats(preds, targets)
         return {
-            "dice": sum(dice_scores) / len(dice_scores),
-            "avd": sum(avd_scores) / len(avd_scores),
-            "mcc": sum(mcc_scores) / len(mcc_scores),
+            "dice": stats["dice"].mean,
+            "avd": stats["avd"].mean,
+            "mcc": stats["mcc"].mean,
         }
 
     def compute_with_stats(

@@ -13,7 +13,7 @@ import torch
 from tqdm import tqdm
 
 from arc_meshchop.evaluation.metrics import MetricResult, SegmentationMetrics
-from arc_meshchop.evaluation.statistics import compare_models_to_reference
+from arc_meshchop.evaluation.statistics import ComparisonResult, compare_models_to_reference
 
 if TYPE_CHECKING:
     from torch.utils.data import DataLoader
@@ -117,10 +117,10 @@ class Evaluator:
             else:
                 outputs = model(images)
 
-            # Get predictions
+            # Get predictions (ensure CPU for metrics computation)
             preds = outputs.argmax(dim=1).cpu()
             all_preds.append(preds)
-            all_targets.append(masks)
+            all_targets.append(masks.cpu())
 
         # Concatenate all batches
         all_preds_cat = torch.cat(all_preds, dim=0)
@@ -152,7 +152,7 @@ class Evaluator:
         reference_result: EvaluationResult,
         other_results: list[EvaluationResult],
         metric: str = "dice",
-    ) -> list:
+    ) -> list[ComparisonResult]:
         """Compare models to reference using statistical tests.
 
         Args:
@@ -162,7 +162,15 @@ class Evaluator:
 
         Returns:
             List of ComparisonResult objects.
+
+        Raises:
+            ValueError: If metric is not one of "dice", "avd", "mcc".
         """
+        valid_metrics = {"dice", "avd", "mcc"}
+        if metric not in valid_metrics:
+            msg = f"Invalid metric '{metric}'. Must be one of {valid_metrics}"
+            raise ValueError(msg)
+
         # Get reference scores
         reference_metric = getattr(reference_result, metric)
         reference_scores = np.array(reference_metric.values)

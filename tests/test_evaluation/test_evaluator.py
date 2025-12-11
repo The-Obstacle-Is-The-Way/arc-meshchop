@@ -216,6 +216,23 @@ class TestEvaluator:
 class TestEvaluatorComparison:
     """Tests for model comparison functionality."""
 
+    def test_invalid_metric_raises(
+        self,
+        sample_metric_result: MetricResult,
+    ) -> None:
+        """Verify invalid metric raises ValueError."""
+        evaluator = Evaluator(device=torch.device("cpu"))
+        result = EvaluationResult(
+            model_name="test",
+            dice=sample_metric_result,
+            avd=sample_metric_result,
+            mcc=sample_metric_result,
+            num_samples=4,
+        )
+
+        with pytest.raises(ValueError, match="Invalid metric"):
+            evaluator.compare_to_reference(result, [result], metric="invalid")
+
     def test_compare_to_reference(
         self,
         tiny_eval_loader: DataLoader,
@@ -246,6 +263,9 @@ class TestEvaluatorComparison:
 
         assert len(comparisons) == 1
         assert comparisons[0].model_name == "other"
+        # Same model on same data yields identical scores -> p=1.0
+        assert comparisons[0].p_value == 1.0
+        assert not comparisons[0].is_significant
 
     def test_compare_multiple_models(
         self,

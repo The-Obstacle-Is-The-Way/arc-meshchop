@@ -39,8 +39,8 @@ class TestWilcoxonTest:
         scores2 = np.random.normal(0.8, 0.05, 50)  # Same mean
 
         p = wilcoxon_test(scores1, scores2)
-        # May or may not be significant due to randomness
-        assert 0 < p <= 1
+        # With same mean distributions and fixed seed, should not be significant
+        assert p > 0.05
 
     def test_returns_float(self) -> None:
         """Verify returns float p-value."""
