@@ -17,6 +17,7 @@
 | 5 | [05-evaluation-metrics.md](./05-evaluation-metrics.md) | DICE, AVD, MCC, statistics | Phases 1-4 |
 | 6 | [06-model-export.md](./06-model-export.md) | ONNX, TensorFlow.js export | Phases 1-5 |
 | 7 | [07-huggingface-spaces.md](./07-huggingface-spaces.md) | HF Spaces deployment (no Gradio) | Phases 1-6 |
+| 8 | [08-cross-platform.md](./08-cross-platform.md) | Mac/Linux/Windows device support | Phase 1 |
 
 ---
 
