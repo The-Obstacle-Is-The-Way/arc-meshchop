@@ -54,6 +54,16 @@ class TestStratificationLabels:
 class TestNestedCVSplits:
     """Tests for nested cross-validation split generation."""
 
+    def test_label_length_validation(self) -> None:
+        """Verify mismatched n_samples and labels raises error."""
+        labels = ["Q1_a", "Q2_a", "Q1_b", "Q2_b"] * 10  # 40 samples
+
+        with pytest.raises(ValueError, match="must match n_samples"):
+            generate_nested_cv_splits(
+                n_samples=50,  # Mismatch: 50 != 40
+                stratification_labels=labels,
+            )
+
     def test_outer_fold_count(self) -> None:
         """Verify correct number of outer folds."""
         labels = ["Q1_a", "Q2_a", "Q1_b", "Q2_b"] * 10  # 40 samples

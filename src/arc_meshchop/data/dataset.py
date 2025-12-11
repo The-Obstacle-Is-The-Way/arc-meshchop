@@ -12,6 +12,7 @@ we use whole-brain 256³ cubes for both training and inference."
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -80,6 +81,25 @@ class ARCDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         if self.cache_dir:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
 
+    def _cache_key(self, idx: int) -> str:
+        """Generate cache key incorporating path and preprocessing params.
+
+        This prevents cache collisions when:
+        - Same cache_dir is used with different preprocessing parameters
+        - Same cache_dir is used with different data splits
+
+        Args:
+            idx: Sample index.
+
+        Returns:
+            Cache filename (e.g., "sample_0000_a1b2c3d4.npz").
+        """
+        # Include source path and preprocessing params in hash
+        image_path = str(self.image_paths[idx])
+        params = f"{image_path}|{self.target_shape}|{self.target_spacing}|{self.preprocess}"
+        param_hash = hashlib.md5(params.encode()).hexdigest()[:8]
+        return f"sample_{idx:04d}_{param_hash}.npz"
+
     def __len__(self) -> int:
         """Return number of samples."""
         return len(self.image_paths)
@@ -122,7 +142,7 @@ class ARCDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         """
         # Check cache first
         if self.cache_dir:
-            cache_path = self.cache_dir / f"sample_{idx:04d}.npz"
+            cache_path = self.cache_dir / self._cache_key(idx)
             if cache_path.exists():
                 data = np.load(cache_path)
                 return data["image"], data["mask"]
@@ -152,7 +172,7 @@ class ARCDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
 
         # Cache if directory specified
         if self.cache_dir:
-            cache_path = self.cache_dir / f"sample_{idx:04d}.npz"
+            cache_path = self.cache_dir / self._cache_key(idx)
             np.savez_compressed(cache_path, image=image, mask=mask)
 
         return image, mask

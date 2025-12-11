@@ -206,14 +206,23 @@ def generate_nested_cv_splits(
 
     Args:
         n_samples: Total number of samples.
-        stratification_labels: Combined stratification labels.
+        stratification_labels: Combined stratification labels (must match n_samples).
         num_outer_folds: Number of outer folds.
         num_inner_folds: Number of inner folds per outer.
         random_seed: Random seed for reproducibility.
 
     Returns:
         NestedCVSplits object with complete split structure.
+
+    Raises:
+        ValueError: If stratification_labels length doesn't match n_samples.
     """
+    if len(stratification_labels) != n_samples:
+        raise ValueError(
+            f"stratification_labels length ({len(stratification_labels)}) "
+            f"must match n_samples ({n_samples})"
+        )
+
     indices = np.arange(n_samples)
     labels = np.array(stratification_labels)
 
