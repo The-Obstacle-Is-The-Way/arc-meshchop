@@ -120,8 +120,8 @@ dependencies = [
     "monai>=1.3.0",
 
     # HuggingFace datasets for ARC data access
-    # NOTE: neuroimaging-go-brrrr git dependency removed due to submodule issues
-    # We implement our own data loading from hugging-science/arc-aphasia-bids
+    # neuroimaging-go-brrrr v0.2.1 provides BIDS/NIfTI utilities on top of HuggingFace datasets
+    "neuroimaging-go-brrrr @ git+https://github.com/The-Obstacle-Is-The-Way/neuroimaging-go-brrrr.git@v0.2.1",
     "datasets>=3.4.0",
     "huggingface-hub>=0.32.0",
 

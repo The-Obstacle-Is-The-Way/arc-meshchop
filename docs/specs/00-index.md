@@ -21,6 +21,49 @@
 
 ---
 
+## Local Training Specs (Pre-Deployment)
+
+> **These specs must be implemented BEFORE HuggingFace Spaces deployment.**
+> You can't demo what you haven't trained.
+
+| Spec | Document | Description | Status |
+|------|----------|-------------|--------|
+| L1 | [local/local-01-hf-data-loader.md](./local/local-01-hf-data-loader.md) | HuggingFace dataset consumption | Pending |
+| L2 | [local/local-02-training-cli.md](./local/local-02-training-cli.md) | CLI commands for training | Pending |
+| L3 | [local/local-03-experiment-runner.md](./local/local-03-experiment-runner.md) | Full 90-run experiment orchestration | Pending |
+| L4 | [local/local-04-paper-parity-validation.md](./local/local-04-paper-parity-validation.md) | Validate results match paper | Pending |
+
+### Data Pipeline Architecture
+
+```
+┌─────────────────────────────┐     ┌──────────────────────────────┐
+│   neuroimaging-go-brrrr     │────▶│     HuggingFace Hub          │
+│   (Git Dependency)          │     │ hugging-science/arc-aphasia  │
+│   - Upload utilities        │     │                              │
+│   - Consumption utilities   │     └──────────────────────────────┘
+└─────────────────────────────┘                    │
+              │                                    │
+              │ from bids_hub import ...           │ load_dataset()
+              ▼                                    ▼
+         ┌──────────────────────────────────────────────┐
+         │              arc-meshchop                    │
+         │   (Imports neuroimaging-go-brrrr as dep)     │
+         └──────────────────────────────────────────────┘
+```
+
+**Dependencies:**
+```toml
+# pyproject.toml
+"neuroimaging-go-brrrr @ git+https://github.com/The-Obstacle-Is-The-Way/neuroimaging-go-brrrr.git@v0.2.1"
+```
+
+**Important:**
+- `_references/neuroimaging-go-brrrr/` is a **local copy for reading** (not the import source)
+- We **import from `bids_hub`** module (the actual package)
+- We use `load_dataset("hugging-science/arc-aphasia-bids")` for data access
+
+---
+
 ## Quick Reference
 
 ### Target Performance (FROM PAPER)
@@ -192,7 +235,9 @@ onnxruntime = ">=1.16.0"
 ### HuggingFace Dependencies
 
 ```toml
-# ARC dataset access via HuggingFace (neuroimaging-go-brrrr removed due to submodule issues)
+# neuroimaging-go-brrrr v0.2.1 - BIDS/NIfTI utilities for HuggingFace
+"neuroimaging-go-brrrr @ git+https://github.com/The-Obstacle-Is-The-Way/neuroimaging-go-brrrr.git@v0.2.1",
+# Also requires these for direct HuggingFace access
 "datasets>=3.4.0",
 "huggingface-hub>=0.32.0",
 ```
