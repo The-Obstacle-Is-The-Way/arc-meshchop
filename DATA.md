@@ -50,7 +50,7 @@ This is the canonical pattern for domain-specific HuggingFace extensions.
 │   • Metadata: filename                   • Metadata: BIDS sidecar JSONs         │
 │   • Structure: flat folders              • Structure: sub-*/ses-*/anat/         │
 │                                                                                 │
-│   HuggingFace `datasets` was built for the left column.                        │
+│   HuggingFace `datasets` was built for the left column.                         │
 │   We're working with the right column.                                          │
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
