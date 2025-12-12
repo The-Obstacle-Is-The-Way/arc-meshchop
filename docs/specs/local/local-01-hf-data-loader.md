@@ -277,6 +277,33 @@ train_dataset = ARCDataset(
 )
 ```
 
+### NIfTI Bytes Caching
+
+HuggingFace's `Nifti()` feature type may return data in different formats:
+- A file path (string) - direct path to cached NIfTI file
+- A dict with `{"path": ..., "bytes": ...}` - bytes need caching
+
+The loader handles this transparently via `_get_nifti_path()` in `src/arc_meshchop/data/huggingface_loader.py`:
+
+```python
+def _get_nifti_path(nifti_obj: object, cache_dir: Path | None = None) -> str | None:
+    """Extract file path from HuggingFace Nifti object.
+
+    Handles both path strings and bytes data (writes to cache).
+    Uses MD5 hash for deterministic cache filenames.
+    """
+    if isinstance(nifti_obj, dict):
+        if nifti_obj.get("path"):
+            return nifti_obj["path"]
+        if nifti_obj.get("bytes"):
+            # Write bytes to cache with deterministic filename
+            content_hash = hashlib.md5(data).hexdigest()[:12]
+            cache_path = cache_dir / f"nifti_{content_hash}.nii.gz"
+            if not cache_path.exists():
+                cache_path.write_bytes(data)
+            return str(cache_path)
+```
+
 ### Note: We Don't Validate Local BIDS Directories
 
 We consume data from HuggingFace Hub via `datasets.load_dataset()`, NOT from local BIDS directories.
@@ -307,8 +334,9 @@ uv run pytest tests/test_data/test_huggingface_loader.py -v
 
 ## Implementation Checklist
 
-- [ ] Refactor huggingface_loader.py to import from bids_hub
-- [ ] Use ARC_VALIDATION_CONFIG for expected counts logging
-- [ ] Keep paper-specific counts (224) for training verification
-- [ ] Update tests to mock bids_hub imports
-- [ ] Run CI to verify all integrations work
+- [x] Refactor huggingface_loader.py to import from bids_hub
+- [x] Use ARC_VALIDATION_CONFIG for expected counts logging
+- [x] Keep paper-specific counts (224) for training verification
+- [x] Handle NIfTI bytes→file caching
+- [x] Update tests to mock bids_hub imports
+- [x] Run CI to verify all integrations work

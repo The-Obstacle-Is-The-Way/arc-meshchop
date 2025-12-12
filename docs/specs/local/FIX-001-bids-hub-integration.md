@@ -304,13 +304,13 @@ These counts are for TRAINING, not raw dataset counts.
 
 ## 5. Implementation Checklist
 
-- [ ] Add `bids_hub` imports to huggingface_loader.py
-- [ ] Use `ARC_VALIDATION_CONFIG.expected_counts` instead of hardcoded values
-- [ ] Keep our `ARCSample`/`ARCDatasetInfo` domain models
-- [ ] Keep our acquisition type filtering logic
-- [ ] Update tests to verify bids_hub integration
-- [ ] Run `uv sync` to ensure git dependency resolves
-- [ ] Run full CI (`make ci`)
+- [x] Add `bids_hub` imports to huggingface_loader.py
+- [x] Use `ARC_VALIDATION_CONFIG.expected_counts` for logging
+- [x] Keep our `ARCSample`/`ARCDatasetInfo` domain models
+- [x] Keep our acquisition type filtering logic
+- [x] Update tests to verify bids_hub integration
+- [x] Run `uv sync` to ensure git dependency resolves
+- [x] Run full CI (`make ci`)
 
 ---
 

@@ -486,7 +486,7 @@ def _interpret_cohens_d(d: float) -> str:
 
 ### 3.2 CLI Command
 
-**Add to:** `src/arc_meshchop/cli/main.py`
+**Location:** `src/arc_meshchop/cli.py` (✅ Implemented)
 
 ```python
 @app.command()
@@ -670,15 +670,15 @@ class TestBenchmarkTable:
 
 ## 5. Implementation Checklist
 
-- [ ] Create `src/arc_meshchop/validation/__init__.py`
-- [ ] Create `src/arc_meshchop/validation/parity.py`
-- [ ] Implement `validate_parity()` function
-- [ ] Implement `generate_benchmark_table()` function
-- [ ] Implement `run_statistical_comparison()` function
-- [ ] Add `validate` CLI command
-- [ ] Create tests in `tests/test_validation/`
-- [ ] Document parity levels and criteria
-- [ ] Add example validation reports
+- [x] Create `src/arc_meshchop/validation/__init__.py`
+- [x] Create `src/arc_meshchop/validation/parity.py`
+- [x] Implement `validate_parity()` function
+- [x] Implement `generate_benchmark_table()` function
+- [x] Implement `run_statistical_comparison()` function
+- [x] Add `validate` CLI command
+- [x] Create tests in `tests/test_validation/`
+- [x] Document parity levels and criteria
+- [x] Add example validation reports
 
 ---
 

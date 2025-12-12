@@ -724,7 +724,7 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResult:
 
 ### 2.3 CLI Command
 
-**Add to:** `src/arc_meshchop/cli/main.py`
+**Location:** `src/arc_meshchop/cli.py` (✅ Implemented)
 
 ```python
 @app.command()
@@ -896,7 +896,7 @@ uv run arc-meshchop experiment \
 
 #### HPO CLI Command
 
-**Add to:** `src/arc_meshchop/cli/main.py`
+**Location:** `src/arc_meshchop/cli.py` (Note: HPO integrated into experiment workflow)
 
 ```python
 @app.command()
@@ -1167,13 +1167,13 @@ def run_hpo_trial(
 
 #### HPO Checklist
 
-- [ ] Create `src/arc_meshchop/training/hpo.py`
-- [ ] Implement `create_study()` with ASHA-like pruning
-- [ ] Implement `run_hpo_trial()` with paper search space
-- [ ] Add `hpo` CLI command
-- [ ] Add `best_params.json` output format
-- [ ] Test HPO with quick run (5 trials, 5 epochs)
-- [ ] Document HPO → experiment workflow
+- [x] Create `src/arc_meshchop/training/hpo.py`
+- [x] Implement `create_study()` with ASHA-like pruning (Optuna)
+- [x] Implement `run_hpo_trial()` with paper search space
+- [x] HPO integrated into experiment workflow
+- [x] Add `best_params.json` output format
+- [x] Test HPO with Optuna pruning
+- [x] Document HPO → experiment workflow
 
 ---
 
@@ -1290,19 +1290,19 @@ class TestFoldResult:
 
 ## 4. Implementation Checklist
 
-- [ ] Create `src/arc_meshchop/experiment/__init__.py`
-- [ ] Create `src/arc_meshchop/experiment/config.py`
-- [ ] Create `src/arc_meshchop/experiment/runner.py`
-- [ ] Implement `ExperimentConfig` dataclass
-- [ ] Implement `ExperimentRunner` class
-- [ ] Implement `_run_single()` for individual training
-- [ ] Implement `_aggregate_by_fold()` for results aggregation
-- [ ] Implement `_evaluate_on_test_sets()` for final evaluation
-- [ ] Add `experiment` CLI command
-- [ ] Add resume capability for interrupted experiments
-- [ ] Create tests in `tests/test_experiment/`
-- [ ] Test with quick run (2 epochs, 1 restart)
-- [ ] Document expected runtime and resource requirements
+- [x] Create `src/arc_meshchop/experiment/__init__.py`
+- [x] Create `src/arc_meshchop/experiment/config.py`
+- [x] Create `src/arc_meshchop/experiment/runner.py`
+- [x] Implement `ExperimentConfig` dataclass
+- [x] Implement `ExperimentRunner` class
+- [x] Implement `_run_single()` for individual training
+- [x] Implement `_aggregate_by_fold()` for results aggregation
+- [x] Implement `_evaluate_on_test_sets()` for final evaluation
+- [x] Add `experiment` CLI command
+- [x] Add resume capability for interrupted experiments
+- [x] Create tests in `tests/test_experiment/`
+- [x] Test with quick run (2 epochs, 1 restart)
+- [x] Document expected runtime and resource requirements
 
 ---
 

@@ -1117,7 +1117,7 @@ class TestCreateScheduler:
             pct_start=0.01,
         )
 
-        # First LR should be ~1/25 of max (OneCycleLR default div_factor)
+        # First LR should be ~1/100 of max (div_factor=100 from paper)
         initial_lr = scheduler.get_last_lr()[0]
         assert initial_lr < 0.001  # Less than max
 
