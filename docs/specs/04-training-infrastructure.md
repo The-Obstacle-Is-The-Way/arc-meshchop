@@ -13,7 +13,7 @@ This spec covers:
 - Optimizer (AdamW with OneCycleLR scheduler)
 - FP16 mixed-precision training
 - Training loop with validation
-- Hyperparameter optimization with Orion/ASHA
+- Hyperparameter optimization with Optuna (paper used Orion, but it's broken on Python 3.12)
 - Checkpoint management
 
 ---
@@ -144,13 +144,16 @@ class HPOConfig:
     """Configuration for hyperparameter optimization.
 
     FROM PAPER Section 2:
-    - Orion framework with ASHA algorithm
+    - Paper used Orion framework with ASHA algorithm
     - Search on inner folds of first outer fold only
+
+    NOTE: Orion is broken on Python 3.12 (uses deprecated configparser.SafeConfigParser).
+    We use Optuna instead, which supports the same ASHA pruning via MedianPruner/SuccessiveHalving.
     """
 
-    # Framework
-    framework: Literal["orion"] = "orion"
-    algorithm: Literal["asha"] = "asha"
+    # Framework (Optuna replaces paper's Orion due to Python 3.12 compatibility)
+    framework: Literal["optuna"] = "optuna"
+    algorithm: Literal["asha", "tpe"] = "asha"  # ASHA via SuccessiveHalvingPruner
 
     # Search space (FROM PAPER)
     channels_min: int = 5
@@ -747,12 +750,16 @@ class Trainer:
 **File:** `src/arc_meshchop/training/hpo.py`
 
 ```python
-"""Hyperparameter optimization with Orion/ASHA.
+"""Hyperparameter optimization with Optuna.
 
 FROM PAPER Section 2:
 "To optimize hyperparameters of MeshNet, we conducted a hyperparameter search
 using Orion, an asynchronous framework for black-box function optimization.
 We employed the Asynchronous Successive Halving Algorithm (ASHA)."
+
+NOTE: Paper used Orion, but it's broken on Python 3.12 (uses deprecated
+configparser.SafeConfigParser). We use Optuna instead, which supports
+equivalent ASHA pruning via SuccessiveHalvingPruner.
 """
 
 from __future__ import annotations
@@ -760,6 +767,9 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
+
+import optuna
+from optuna.pruners import SuccessiveHalvingPruner
 
 from arc_meshchop.training.config import HPOConfig, TrainingConfig
 
@@ -781,8 +791,8 @@ class HPOTrial:
     status: str = "pending"
 
 
-def get_orion_search_space(config: HPOConfig) -> dict[str, str]:
-    """Get Orion search space definition.
+def create_optuna_study(config: HPOConfig, study_name: str) -> optuna.Study:
+    """Create Optuna study with ASHA-equivalent pruning.
 
     FROM PAPER Section 2:
     - channels: uniform(5, 21)
@@ -793,16 +803,41 @@ def get_orion_search_space(config: HPOConfig) -> dict[str, str]:
 
     Args:
         config: HPO configuration.
+        study_name: Name for the Optuna study.
 
     Returns:
-        Orion-compatible search space dictionary.
+        Configured Optuna study with ASHA pruning.
+    """
+    # SuccessiveHalvingPruner implements ASHA algorithm
+    pruner = SuccessiveHalvingPruner(
+        min_resource=config.min_epochs,
+        reduction_factor=3,
+        min_early_stopping_rate=0,
+    )
+
+    return optuna.create_study(
+        study_name=study_name,
+        direction="maximize",  # Maximize DICE
+        pruner=pruner,
+    )
+
+
+def suggest_hyperparameters(trial: optuna.Trial, config: HPOConfig) -> dict[str, Any]:
+    """Suggest hyperparameters for a trial using paper's search space.
+
+    Args:
+        trial: Optuna trial object.
+        config: HPO configuration with search ranges.
+
+    Returns:
+        Dictionary of suggested hyperparameters.
     """
     return {
-        "channels": f"uniform({config.channels_min}, {config.channels_max}, discrete=True)",
-        "lr": f"loguniform({config.lr_min}, {config.lr_max})",
-        "weight_decay": f"loguniform({config.weight_decay_min}, {config.weight_decay_max})",
-        "bg_weight": f"uniform({config.bg_weight_min}, {config.bg_weight_max})",
-        "warmup_pct": f"choices({list(config.warmup_pct_choices)})",
+        "channels": trial.suggest_int("channels", config.channels_min, config.channels_max),
+        "lr": trial.suggest_float("lr", config.lr_min, config.lr_max, log=True),
+        "weight_decay": trial.suggest_float("weight_decay", config.weight_decay_min, config.weight_decay_max, log=True),
+        "bg_weight": trial.suggest_float("bg_weight", config.bg_weight_min, config.bg_weight_max),
+        "warmup_pct": trial.suggest_categorical("warmup_pct", list(config.warmup_pct_choices)),
     }
 
 
@@ -813,7 +848,7 @@ def trial_params_to_training_config(
     """Convert trial parameters to TrainingConfig.
 
     Args:
-        params: Trial parameters from Orion.
+        params: Trial parameters from Optuna.
         base_config: Optional base config to override.
 
     Returns:
@@ -843,98 +878,74 @@ def run_hpo(
     hpo_config: HPOConfig,
     train_loader: DataLoader,
     val_loader: DataLoader,
-    experiment_name: str = "meshnet_hpo",
-    max_trials: int = 100,
+    study_name: str = "meshnet_hpo",
+    n_trials: int = 100,
 ) -> dict[str, Any]:
-    """Run hyperparameter optimization.
+    """Run hyperparameter optimization with Optuna.
 
-    Uses Orion with ASHA for efficient HPO.
+    Uses Optuna with SuccessiveHalvingPruner (ASHA equivalent).
+
+    NOTE: Paper used Orion, but it's broken on Python 3.12.
+    Optuna provides equivalent functionality.
 
     Args:
         hpo_config: HPO configuration.
         train_loader: Training data loader.
         val_loader: Validation data loader.
-        experiment_name: Name for the experiment.
-        max_trials: Maximum number of trials.
+        study_name: Name for the Optuna study.
+        n_trials: Number of trials to run.
 
     Returns:
         Best parameters found.
     """
-    try:
-        from orion.client import create_experiment
-    except ImportError as e:
-        raise ImportError(
-            "Orion is required for HPO. Install with: pip install orion"
-        ) from e
-
     from arc_meshchop.models import MeshNet
     from arc_meshchop.training.trainer import Trainer
 
-    # Create Orion experiment
-    experiment = create_experiment(
-        name=experiment_name,
-        space=get_orion_search_space(hpo_config),
-        algorithms={
-            "asha": {
-                "seed": hpo_config.seed,
-                "num_rungs": hpo_config.num_rungs,
-                "num_brackets": hpo_config.num_brackets,
-            }
-        },
-    )
+    # Create Optuna study with ASHA pruning
+    study = create_optuna_study(hpo_config, study_name)
 
-    logger.info("Starting HPO with max %d trials", max_trials)
-
-    best_dice = 0.0
-    best_params: dict[str, Any] = {}
-
-    trial_count = 0
-    while not experiment.is_done and trial_count < max_trials:
-        trial = experiment.suggest()
-        if trial is None:
-            break
-
-        trial_count += 1
-        logger.info("Trial %d: %s", trial_count, trial.params)
+    def objective(trial: optuna.Trial) -> float:
+        """Optuna objective function."""
+        # Suggest hyperparameters
+        params = suggest_hyperparameters(trial, hpo_config)
+        logger.info("Trial %d: %s", trial.number, params)
 
         try:
             # Create model with trial channels
-            model = MeshNet(channels=trial.params["channels"])
+            model = MeshNet(channels=params["channels"])
 
             # Create training config from trial params
-            epochs = trial.params.get("epochs", hpo_config.max_epochs)
-            train_config = trial_params_to_training_config(trial.params)
-            train_config.epochs = epochs
+            train_config = trial_params_to_training_config(params)
+            train_config.epochs = hpo_config.max_epochs
 
-            # Train
+            # Train with pruning callback
             trainer = Trainer(model, train_config)
-            results = trainer.train(train_loader, val_loader)
 
-            dice_score = results["best_dice"]
-            logger.info("Trial %d: DICE = %.4f", trial_count, dice_score)
+            # Custom training loop with pruning
+            for epoch in range(train_config.epochs):
+                trainer.train_epoch(train_loader)
+                dice_score = trainer.validate(val_loader)
 
-            # Report to Orion (minimize negative DICE)
-            experiment.observe(
-                trial,
-                [{"name": "dice", "type": "objective", "value": -dice_score}],
-            )
+                # Report to Optuna for pruning
+                trial.report(dice_score, epoch)
+                if trial.should_prune():
+                    raise optuna.TrialPruned()
 
-            # Track best
-            if dice_score > best_dice:
-                best_dice = dice_score
-                best_params = dict(trial.params)
+            return trainer.best_dice
 
+        except optuna.TrialPruned:
+            raise
         except Exception as e:
-            logger.error("Trial %d failed: %s", trial_count, e)
-            experiment.observe(
-                trial,
-                [{"name": "dice", "type": "objective", "value": 0.0}],
-            )
+            logger.error("Trial %d failed: %s", trial.number, e)
+            return 0.0
 
-    logger.info("HPO complete. Best DICE: %.4f", best_dice)
-    logger.info("Best params: %s", best_params)
+    logger.info("Starting HPO with %d trials", n_trials)
+    study.optimize(objective, n_trials=n_trials)
 
-    return {"best_dice": best_dice, "best_params": best_params}
+    logger.info("HPO complete. Best DICE: %.4f", study.best_value)
+    logger.info("Best params: %s", study.best_params)
+
+    return {"best_dice": study.best_value, "best_params": study.best_params}
 ```
 
 ### 2.6 Module `__init__.py`
@@ -1278,8 +1289,8 @@ class TestTrainer:
 ### Phase 4.5: HPO (Optional)
 
 - [ ] Create `src/arc_meshchop/training/hpo.py`
-- [ ] Implement Orion integration
-- [ ] Implement ASHA search space
+- [ ] Implement Optuna integration (paper used Orion, but broken on Python 3.12)
+- [ ] Implement ASHA-equivalent pruning via SuccessiveHalvingPruner
 
 ### Phase 4.6: Tests
 
@@ -1328,4 +1339,5 @@ print(f'Loss: {loss.item():.4f}')
 - Paper Section 2: Training methodology
 - Research docs: `docs/research/03-training-configuration.md`
 - PyTorch OneCycleLR: https://pytorch.org/docs/stable/generated/torch.optim.lr_scheduler.OneCycleLR.html
-- Orion HPO: https://orion.readthedocs.io
+- Optuna HPO: https://optuna.readthedocs.io (replaces paper's Orion due to Python 3.12 compatibility)
+- Optuna SuccessiveHalvingPruner: https://optuna.readthedocs.io/en/stable/reference/pruners.html
