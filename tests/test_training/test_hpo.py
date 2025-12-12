@@ -130,7 +130,7 @@ class TestTrialParamsToTrainingConfig:
         """Sample trial parameters from HPO."""
         return {
             "channels": 16,
-            "lr": 0.005,
+            "learning_rate": 0.005,  # Matches trial.suggest_float("learning_rate", ...)
             "weight_decay": 1e-4,
             "bg_weight": 0.3,
             "warmup_pct": 0.1,

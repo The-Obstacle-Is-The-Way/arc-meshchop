@@ -32,7 +32,7 @@ class TestLoadARCFromHuggingFace:
         mock_return = {"train": mock_dataset}
 
         with patch(
-            "arc_meshchop.data.huggingface_loader.load_dataset",
+            "datasets.load_dataset",  # Patch at the source module
             return_value=mock_return,
         ):
             from arc_meshchop.data.huggingface_loader import load_arc_from_huggingface
@@ -52,7 +52,7 @@ class TestLoadARCFromHuggingFace:
         mock_return = {"train": mock_dataset}
 
         with patch(
-            "arc_meshchop.data.huggingface_loader.load_dataset",
+            "datasets.load_dataset",  # Patch at the source module
             return_value=mock_return,
         ):
             from arc_meshchop.data.huggingface_loader import load_arc_from_huggingface
@@ -74,7 +74,7 @@ class TestLoadARCFromHuggingFace:
         mock_return = {"train": mock_dataset}
 
         with patch(
-            "arc_meshchop.data.huggingface_loader.load_dataset",
+            "datasets.load_dataset",  # Patch at the source module
             return_value=mock_return,
         ):
             from arc_meshchop.data.huggingface_loader import load_arc_from_huggingface
@@ -197,10 +197,8 @@ def _create_mock_dataset(
     if has_mask is None:
         has_mask = [True] * n_samples
 
-    mock = MagicMock()
-    mock.__len__ = MagicMock(return_value=n_samples)
-
-    def getitem(idx: int) -> dict:
+    def make_row(idx: int) -> dict:
+        """Create a single dataset row."""
         acq = acquisition_types[idx] if idx < len(acquisition_types) else "space_2x"
         if acq == "space_2x":
             acq_str = "space2x"
@@ -216,5 +214,12 @@ def _create_mock_dataset(
             "acquisition": acquisition_types[idx],
         }
 
-    mock.__getitem__ = getitem
+    # Create list of all rows for iteration
+    rows = [make_row(i) for i in range(n_samples)]
+
+    mock = MagicMock()
+    mock.__len__ = MagicMock(return_value=n_samples)
+    mock.__iter__ = MagicMock(return_value=iter(rows))
+    # __getitem__ receives (self, key) when called as mock[key]
+    mock.__getitem__ = MagicMock(side_effect=lambda key: rows[key])
     return mock

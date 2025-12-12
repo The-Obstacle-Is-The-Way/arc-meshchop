@@ -21,6 +21,7 @@ app = typer.Typer(
     add_completion=False,
 )
 console = Console()
+err_console = Console(stderr=True)
 
 # Configure logging
 logging.basicConfig(
@@ -154,7 +155,7 @@ def download(
         console.print("Expected: ~224 samples (from paper)")
 
     except Exception as e:
-        console.print(f"[red]Error downloading dataset: {e}[/red]", err=True)
+        err_console.print(f"[red]Error downloading dataset: {e}[/red]")
         raise typer.Exit(1) from e
 
 
@@ -259,8 +260,8 @@ def train(
     # Load dataset info
     info_path = data_dir / "dataset_info.json"
     if not info_path.exists():
-        console.print(f"[red]Dataset info not found: {info_path}[/red]", err=True)
-        console.print("Run 'arc-meshchop download' first.", err=True)
+        err_console.print(f"[red]Dataset info not found: {info_path}[/red]")
+        err_console.print("Run 'arc-meshchop download' first.")
         raise typer.Exit(1)
 
     with info_path.open() as f:
@@ -411,7 +412,7 @@ def evaluate(
     # Load dataset info
     info_path = data_dir / "dataset_info.json"
     if not info_path.exists():
-        console.print(f"[red]Dataset info not found: {info_path}[/red]", err=True)
+        err_console.print(f"[red]Dataset info not found: {info_path}[/red]")
         raise typer.Exit(1)
 
     with info_path.open() as f:
@@ -713,7 +714,7 @@ def validate(
     from arc_meshchop.validation.parity import generate_benchmark_table, validate_parity
 
     if not results_file.exists():
-        console.print(f"[red]Results file not found: {results_file}[/red]", err=True)
+        err_console.print(f"[red]Results file not found: {results_file}[/red]")
         raise typer.Exit(1)
 
     result = validate_parity(results_file, variant)

@@ -375,7 +375,7 @@ def run_statistical_comparison(
         "test_type": "Wilcoxon signed-rank",  # Paper methodology
         "wilcoxon_statistic": float(statistic),
         "p_value": float(p_value),
-        "significant": p_value < alpha,
+        "significant": bool(p_value < alpha),
         "cohens_d": float(cohens_d),
         "interpretation": _interpret_cohens_d(cohens_d),
         "conclusion": (

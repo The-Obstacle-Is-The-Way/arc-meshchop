@@ -227,6 +227,11 @@ module = [
     "tensorboard.*",
     "sklearn.*",
     "scipy.*",
+    # HuggingFace (no stubs)
+    "datasets",
+    "datasets.*",
+    "huggingface_hub",
+    "huggingface_hub.*",
     # Export dependencies (Spec 06)
     "onnxruntime",
     "onnxruntime.*",
@@ -246,6 +251,14 @@ module = [
     "arc_meshchop.export.*",
 ]
 disable_error_code = ["import-untyped", "import-not-found"]
+
+# Nibabel type stubs are incomplete - disable attr-defined for modules using nibabel
+[[tool.mypy.overrides]]
+module = [
+    "arc_meshchop.data.huggingface_loader",
+    "arc_meshchop.data.preprocessing",
+]
+disable_error_code = ["attr-defined"]
 
 # =============================================================================
 # COVERAGE - Test Coverage

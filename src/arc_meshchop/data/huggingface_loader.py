@@ -466,17 +466,21 @@ def _compute_lesion_volume_from_nifti(nifti_obj: object) -> int:
         Lesion volume in voxels.
     """
     try:
-        import io
+        import tempfile
 
         import nibabel as nib
         import numpy as np
 
         # Try to load data
         if hasattr(nifti_obj, "get_fdata"):
+            # Already a nibabel image
             data = nifti_obj.get_fdata()
         elif isinstance(nifti_obj, dict) and "bytes" in nifti_obj:
-            # Load from bytes
-            nii = nib.load(io.BytesIO(nifti_obj["bytes"]))
+            # Load from bytes - write to temp file (nibabel doesn't support BytesIO)
+            with tempfile.NamedTemporaryFile(suffix=".nii.gz", delete=False) as f:
+                f.write(nifti_obj["bytes"])
+                temp_path = f.name
+            nii = nib.load(temp_path)
             data = nii.get_fdata()
         elif isinstance(nifti_obj, str):
             nii = nib.load(nifti_obj)
