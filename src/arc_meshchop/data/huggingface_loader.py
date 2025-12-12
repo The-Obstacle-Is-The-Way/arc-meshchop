@@ -31,7 +31,7 @@ class ARCSample:
         subject_id: BIDS subject ID (e.g., "sub-M2001").
         session_id: BIDS session ID (e.g., "ses-1").
         image_path: Path to T2-weighted image.
-        mask_path: Path to lesion mask.
+        mask_path: Path to lesion mask (None if no mask).
         lesion_volume: Lesion volume in voxels.
         acquisition_type: "space_2x" or "space_no_accel".
     """
@@ -39,7 +39,7 @@ class ARCSample:
     subject_id: str
     session_id: str
     image_path: Path
-    mask_path: Path
+    mask_path: Path | None  # None if no lesion mask exists
     lesion_volume: int
     acquisition_type: str
 
@@ -66,8 +66,8 @@ class ARCDatasetInfo:
 
     @property
     def mask_paths(self) -> list[Path]:
-        """Get all mask paths."""
-        return [s.mask_path for s in self.samples]
+        """Get all mask paths (excludes samples without masks)."""
+        return [s.mask_path for s in self.samples if s.mask_path is not None]
 
     @property
     def lesion_volumes(self) -> list[int]:
@@ -271,7 +271,7 @@ def _extract_samples(
                 subject_id=row.get("subject_id", f"sub-{idx:04d}"),
                 session_id=row.get("session_id", "ses-1"),
                 image_path=Path(image_path),
-                mask_path=Path(mask_path) if mask_path else Path(),
+                mask_path=Path(mask_path) if mask_path else None,
                 lesion_volume=lesion_volume,
                 acquisition_type=acq_type,
             )
@@ -536,15 +536,19 @@ def download_arc_to_local(
         # Copy files
         if sample.image_path.exists():
             shutil.copy2(sample.image_path, local_image)
-        if sample.mask_path.exists():
+
+        # Handle optional mask
+        saved_mask: Path | None = None
+        if sample.mask_path is not None and sample.mask_path.exists():
             shutil.copy2(sample.mask_path, local_mask)
+            saved_mask = local_mask
 
         local_samples.append(
             ARCSample(
                 subject_id=sample.subject_id,
                 session_id=sample.session_id,
                 image_path=local_image,
-                mask_path=local_mask,
+                mask_path=saved_mask,
                 lesion_volume=sample.lesion_volume,
                 acquisition_type=sample.acquisition_type,
             )

@@ -265,6 +265,9 @@ class ExperimentRunner:
         run_id = f"fold_{outer_fold}_{inner_fold}_restart_{restart}"
         run_dir = self.config.output_dir / run_id
 
+        # Create run directory before training (checkpointing needs this)
+        run_dir.mkdir(parents=True, exist_ok=True)
+
         # Check if already completed
         results_file = run_dir / "results.json"
         if self.config.skip_completed and results_file.exists():
@@ -359,8 +362,7 @@ class ExperimentRunner:
             duration_seconds=duration,
         )
 
-        # Save individual result
-        run_dir.mkdir(parents=True, exist_ok=True)
+        # Save individual result (run_dir already created above)
         results_file.write_text(json.dumps(asdict(run_result), indent=2))
 
         return run_result
@@ -378,6 +380,12 @@ class ExperimentRunner:
                 fold_runs = [
                     r for r in self.results if r.outer_fold == outer and r.inner_fold == inner
                 ]
+                # Fail fast if no runs collected (prevents div-by-zero in FoldResult)
+                if not fold_runs:
+                    raise RuntimeError(
+                        f"No runs collected for fold {outer}.{inner}. "
+                        f"Check num_restarts ({self.config.num_restarts}) and run execution."
+                    )
                 folds.append(
                     FoldResult(
                         outer_fold=outer,

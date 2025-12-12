@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -265,7 +266,9 @@ def run_hpo_trial(
             background_weight=bg_weight,
             pct_start=warmup_pct,
             div_factor=100.0,  # FROM PAPER: "starts at 1/100th of max LR"
-            checkpoint_dir=Path(f"/tmp/hpo_trial_{trial.number}_fold_{inner_fold}"),
+            checkpoint_dir=Path(
+                tempfile.mkdtemp(prefix=f"hpo_trial_{trial.number}_fold_{inner_fold}_")
+            ),
         )
 
         trainer = Trainer(model, config, device=device)
