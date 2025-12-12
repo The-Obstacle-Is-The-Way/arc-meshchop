@@ -27,8 +27,8 @@
 │  │  (Full dataset counts: 230 subjects, 902 sessions, 447 t2w)         │  │
 │  │  Used for: Logging context, sanity checking                         │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
-│                                    │                                       │
-│                                    ▼                                       │
+│                                    │                                      │
+│                                    ▼                                      │
 │  ┌─────────────────────────────────────────────────────────────────────┐  │
 │  │  Paper-Specific Filtering (OUR CODE)                                │  │
 │  │  • strict_t2w=True (no FLAIR fallback)                              │  │
@@ -38,8 +38,8 @@
 │  │  • require_lesion_mask=True                                         │  │
 │  │  → Output: 224 training samples                                     │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
-│                                    │                                       │
-│                                    ▼                                       │
+│                                    │                                      │
+│                                    ▼                                      │
 │  ┌─────────────────────────────────────────────────────────────────────┐  │
 │  │  Domain Models (OUR CODE)                                           │  │
 │  │  • ARCSample: subject_id, session_id, image_path, mask_path,        │  │
@@ -67,23 +67,23 @@
 │  │  • Resample to 256³ @ 1mm isotropic                                 │  │
 │  │  • Normalize to 0-1 range                                           │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
-│                                    │                                       │
-│                                    ▼                                       │
+│                                    │                                      │
+│                                    ▼                                      │
 │  ┌─────────────────────────────────────────────────────────────────────┐  │
 │  │  Nested Cross-Validation (splits.py)                                │  │
 │  │  • 3 outer folds × 3 inner folds = 9 configurations                 │  │
 │  │  • Stratified by: lesion size quartile + acquisition type           │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
-│                                    │                                       │
-│                                    ▼                                       │
+│                                    │                                      │
+│                                    ▼                                      │
 │  ┌─────────────────────────────────────────────────────────────────────┐  │
 │  │  MeshNet Training (trainer.py)                                      │  │
 │  │  • MeshNet-26 (147,474 params)                                      │  │
 │  │  • AdamW + OneCycleLR + WeightedCrossEntropy                        │  │
 │  │  • 3 random restarts per fold (paper methodology)                   │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
-│                                    │                                       │
-│                                    ▼                                       │
+│                                    │                                      │
+│                                    ▼                                      │
 │  ┌─────────────────────────────────────────────────────────────────────┐  │
 │  │  Evaluation (metrics.py, evaluator.py)                              │  │
 │  │  • DICE coefficient (target: 0.876 ± 0.108)                         │  │
