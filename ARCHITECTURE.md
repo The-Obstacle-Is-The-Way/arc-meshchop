@@ -6,7 +6,7 @@
 
 ## System Overview
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ARC-MESHCHOP ARCHITECTURE                           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -195,7 +195,7 @@ These behaviors ensure paper replication accuracy:
 
 ## File Structure
 
-```
+```text
 src/arc_meshchop/
 ├── data/
 │   ├── huggingface_loader.py  # HuggingFace → ARCDatasetInfo

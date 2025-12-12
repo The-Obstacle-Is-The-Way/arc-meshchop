@@ -16,9 +16,10 @@ class TestLoadARCFromHuggingFace:
         # bids_hub is a required dependency, so this import must always work
         from bids_hub.validation.arc import ARC_VALIDATION_CONFIG
 
-        # Verify expected counts are accessible
+        # Verify expected counts are accessible (full ARC dataset, not paper subset)
         assert ARC_VALIDATION_CONFIG.expected_counts["subjects"] == 230
         assert ARC_VALIDATION_CONFIG.expected_counts["sessions"] == 902
+        assert ARC_VALIDATION_CONFIG.expected_counts["t2w"] == 447  # T2w sessions
 
     def test_returns_arc_dataset_info(self) -> None:
         """Verify return type is ARCDatasetInfo."""

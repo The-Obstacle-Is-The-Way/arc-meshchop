@@ -6,7 +6,7 @@
 
 ## The Model: MeshNet-26
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                         MeshNet-26                              │
 │                                                                 │
@@ -87,13 +87,15 @@ restarts = 10  # Train 10 times, pick best
 
 ## Dataset
 
-```
+```text
 ARC Dataset (hugging-science/arc-aphasia-bids)
-├── 224 samples (after paper filtering)
+├── Full dataset: 230 subjects, 902 sessions, 447 T2w
+├── Paper training subset: 224 samples (after filtering)
 │   ├── 115 SPACE with 2x acceleration
 │   └── 109 SPACE without acceleration
+│   (Excludes 5 turbo-spin-echo sequences)
 ├── 256³ @ 1mm isotropic (after preprocessing)
-└── Expert lesion masks for each
+└── Expert lesion masks for each sample
 ```
 
 ---
@@ -153,12 +155,12 @@ This BEATS:
 
 ## Summary
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                     WHAT WE'RE DOING                            │
 ├─────────────────────────────────────────────────────────────────┤
 │  Model:      MeshNet-26 (147K params)                           │
-│  Dataset:    ARC (224 samples)                                  │
+│  Dataset:    ARC (224 samples from 230-subject dataset)         │
 │  Hardware:   M1 MacBook (MPS backend)                           │
 │  Time:       ~6-15 hours                                        │
 │  Target:     DICE 0.876                                         │
