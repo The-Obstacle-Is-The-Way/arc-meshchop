@@ -95,6 +95,39 @@
 
 ---
 
+## Cache Location
+
+When you run `datasets.load_dataset()`, data is cached locally:
+
+```text
+~/.cache/huggingface/
+├── hub/
+│   └── datasets--hugging-science--arc-aphasia-bids/
+│       ├── blobs/              # Raw NIfTI files
+│       └── snapshots/          # Dataset versions
+└── datasets/
+    └── hugging-science___arc-aphasia-bids/
+        └── default/0.0.0/      # Processed Arrow files
+```
+
+### Customizing Cache Location
+
+```bash
+# Change ALL HuggingFace caches (recommended)
+export HF_HOME=/Volumes/ExternalDrive/huggingface
+
+# Change only datasets cache
+export HF_DATASETS_CACHE=/Volumes/ExternalDrive/hf_datasets
+
+# Change only hub downloads
+export HF_HUB_CACHE=/Volumes/ExternalDrive/hf_hub
+
+# Force offline mode (use cached data only)
+export HF_HUB_OFFLINE=1
+```
+
+---
+
 ## Component Responsibilities
 
 ### 1. bids_hub (neuroimaging-go-brrrr) - External Dependency
