@@ -101,10 +101,11 @@ class Evaluator:
         model = model.to(self.device)
         model.eval()
 
-        all_preds: list[torch.Tensor] = []
-        all_targets: list[torch.Tensor] = []
-
         logger.info("Evaluating %s on %d batches", model_name, len(dataloader))
+
+        dice_values: list[float] = []
+        avd_values: list[float] = []
+        mcc_values: list[float] = []
 
         for images, masks in tqdm(dataloader, desc=f"Evaluating {model_name}"):
             images = images.to(self.device)
@@ -119,22 +120,29 @@ class Evaluator:
 
             # Get predictions (ensure CPU for metrics computation)
             preds = outputs.argmax(dim=1).cpu()
-            all_preds.append(preds)
-            all_targets.append(masks.cpu())
+            masks_cpu = masks.cpu()
 
-        # Concatenate all batches
-        all_preds_cat = torch.cat(all_preds, dim=0)
-        all_targets_cat = torch.cat(all_targets, dim=0)
+            # Compute metrics for batch (incrementally)
+            batch_metrics = self.metrics_calculator.compute_with_stats(preds, masks_cpu)
+            dice_values.extend(batch_metrics["dice"].values)
+            avd_values.extend(batch_metrics["avd"].values)
+            mcc_values.extend(batch_metrics["mcc"].values)
 
-        # Compute metrics with statistics
-        metrics = self.metrics_calculator.compute_with_stats(all_preds_cat, all_targets_cat)
+        # Helper to create MetricResult
+        def create_result(name: str, values: list[float]) -> MetricResult:
+            return MetricResult(
+                name=name,
+                mean=float(np.mean(values)) if values else 0.0,
+                std=float(np.std(values)) if values else 0.0,
+                values=values,
+            )
 
         result = EvaluationResult(
             model_name=model_name,
-            dice=metrics["dice"],
-            avd=metrics["avd"],
-            mcc=metrics["mcc"],
-            num_samples=len(all_preds_cat),
+            dice=create_result("DICE", dice_values),
+            avd=create_result("AVD", avd_values),
+            mcc=create_result("MCC", mcc_values),
+            num_samples=len(dice_values),
         )
 
         logger.info(

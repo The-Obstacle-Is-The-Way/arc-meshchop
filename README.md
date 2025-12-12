@@ -32,7 +32,7 @@ uv sync --all-extras
 # Check your hardware
 uv run arc-meshchop info
 
-# Download dataset (goes to ~/.cache/huggingface/hub/)
+# Download dataset (cached to data/arc/cache/ by default)
 uv run arc-meshchop download
 
 # Train MeshNet-26

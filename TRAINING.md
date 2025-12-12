@@ -129,8 +129,7 @@ arc-meshchop train \
   --epochs 50
 
 # Step 3: Evaluate
-arc-meshchop evaluate \
-  --checkpoint outputs/meshnet26/best.pt \
+arc-meshchop evaluate outputs/meshnet26/best.pt \
   --data-dir data/arc
 ```
 

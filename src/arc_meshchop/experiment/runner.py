@@ -309,11 +309,13 @@ class ExperimentRunner:
         train_dataset = ARCDataset(
             image_paths=[Path(image_paths[i]) for i in split.train_indices],
             mask_paths=[Path(mask_paths[i]) for i in split.train_indices],
+            cache_dir=self.config.data_dir / "cache" / run_id / "train",
         )
 
         val_dataset = ARCDataset(
             image_paths=[Path(image_paths[i]) for i in split.val_indices],
             mask_paths=[Path(mask_paths[i]) for i in split.val_indices],
+            cache_dir=self.config.data_dir / "cache" / run_id / "val",
         )
 
         train_loader, val_loader = create_dataloaders(
@@ -473,8 +475,9 @@ class ExperimentRunner:
             )
 
             # Evaluate
-            all_preds = []
-            all_targets = []
+            dice_scores = []
+            avd_scores = []
+            mcc_scores = []
 
             with torch.no_grad():
                 for idx in range(len(test_dataset)):
@@ -484,13 +487,14 @@ class ExperimentRunner:
                     output = model(image)
                     pred = output.argmax(dim=1).squeeze(0).cpu()
 
-                    all_preds.append(pred)
-                    all_targets.append(mask)
+                    scores = metrics_calculator.compute_single(pred, mask)
+                    dice_scores.append(scores["dice"])
+                    avd_scores.append(scores["avd"])
+                    mcc_scores.append(scores["mcc"])
 
-            preds = torch.stack(all_preds)
-            targets = torch.stack(all_targets)
-
-            metrics = metrics_calculator.compute_batch(preds, targets)
+            test_dice = float(np.mean(dice_scores))
+            test_avd = float(np.mean(avd_scores))
+            test_mcc = float(np.mean(mcc_scores))
 
             test_results.append(
                 {
@@ -498,9 +502,9 @@ class ExperimentRunner:
                     "best_inner_fold": best_run.inner_fold,
                     "best_restart": best_run.restart,
                     "best_val_dice": best_run.best_dice,
-                    "test_dice": metrics["dice"],
-                    "test_avd": metrics["avd"],
-                    "test_mcc": metrics["mcc"],
+                    "test_dice": test_dice,
+                    "test_avd": test_avd,
+                    "test_mcc": test_mcc,
                     "num_test_samples": len(test_indices),
                 }
             )
@@ -508,9 +512,9 @@ class ExperimentRunner:
             logger.info(
                 "Outer fold %d test: DICE=%.4f, AVD=%.4f, MCC=%.4f",
                 outer_fold,
-                metrics["dice"],
-                metrics["avd"],
-                metrics["mcc"],
+                test_dice,
+                test_avd,
+                test_mcc,
             )
 
         return test_results

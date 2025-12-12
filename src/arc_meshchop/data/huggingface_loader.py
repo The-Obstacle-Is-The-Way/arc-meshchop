@@ -494,8 +494,13 @@ def _compute_lesion_volume_from_nifti(nifti_obj: object) -> int:
             with tempfile.NamedTemporaryFile(suffix=".nii.gz", delete=False) as f:
                 f.write(nifti_obj["bytes"])
                 temp_path = f.name
-            nii = nib.load(temp_path)
-            data = nii.get_fdata()
+
+            try:
+                nii = nib.load(temp_path)
+                data = nii.get_fdata()
+            finally:
+                # Clean up temp file
+                Path(temp_path).unlink(missing_ok=True)
         elif isinstance(nifti_obj, str):
             nii = nib.load(nifti_obj)
             data = nii.get_fdata()
@@ -504,7 +509,8 @@ def _compute_lesion_volume_from_nifti(nifti_obj: object) -> int:
 
         return int(np.sum(data > 0.5))
 
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to compute lesion volume: %s", e)
         return 0
 
 

@@ -210,7 +210,7 @@ arc-meshchop download --output data/arc
 arc-meshchop train --data-dir data/arc --output outputs/train
 
 # Step 3: Evaluate
-arc-meshchop evaluate --checkpoint outputs/train/best.pt --data-dir data/arc
+arc-meshchop evaluate outputs/train/best.pt --data-dir data/arc
 ```
 
 ---

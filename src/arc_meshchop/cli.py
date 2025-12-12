@@ -459,8 +459,12 @@ def evaluate(
     console.print(f"Loaded checkpoint from {checkpoint}")
 
     # Evaluate
-    all_preds = []
-    all_targets = []
+    dice_scores = []
+    avd_scores = []
+    mcc_scores = []
+
+    # Use SegmentationMetrics class
+    metrics_calculator = SegmentationMetrics()
 
     with torch.no_grad():
         for idx in range(len(test_dataset)):
@@ -470,19 +474,23 @@ def evaluate(
             model_output = model(image)
             pred = model_output.argmax(dim=1).squeeze(0).cpu()
 
-            all_preds.append(pred)
-            all_targets.append(mask)
+            # Compute metrics per-sample (no OOM)
+            scores = metrics_calculator.compute_single(pred, mask)
+            dice_scores.append(scores["dice"])
+            avd_scores.append(scores["avd"])
+            mcc_scores.append(scores["mcc"])
 
             if (idx + 1) % 10 == 0:
                 console.print(f"Processed {idx + 1}/{len(test_dataset)} samples")
 
-    # Stack and compute metrics
-    preds = torch.stack(all_preds)
-    targets = torch.stack(all_targets)
+    # Compute mean metrics
+    import numpy as np
 
-    # Use SegmentationMetrics class (not the non-existent calculate_metrics function)
-    metrics_calculator = SegmentationMetrics()
-    metrics = metrics_calculator.compute_batch(preds, targets)
+    metrics = {
+        "dice": float(np.mean(dice_scores)),
+        "avd": float(np.mean(avd_scores)),
+        "mcc": float(np.mean(mcc_scores)),
+    }
 
     console.print()
     console.print("[bold]Results:[/bold]")

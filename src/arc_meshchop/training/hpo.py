@@ -135,11 +135,11 @@ def create_study(
     # Use BasePruner type to allow both MedianPruner and NopPruner
     pruner: optuna.pruners.BasePruner
     if pruning:
-        # MedianPruner prunes trials that fall below median at intermediate points
-        pruner = optuna.pruners.MedianPruner(
-            n_startup_trials=5,  # Don't prune until 5 complete trials
-            n_warmup_steps=10,  # Don't prune first 10 epochs
-            interval_steps=5,  # Check every 5 epochs
+        # ASHA via SuccessiveHalvingPruner
+        pruner = optuna.pruners.SuccessiveHalvingPruner(
+            min_resource=1,  # Minimum epochs before pruning
+            reduction_factor=3,  # Keep top 1/3 at each rung
+            min_early_stopping_rate=0,
         )
     else:
         pruner = optuna.pruners.NopPruner()
