@@ -142,7 +142,8 @@ from datasets import load_dataset
 ```python
 """HuggingFace dataset loader for ARC.
 
-Uses bids_hub (neuroimaging-go-brrrr) utilities for ARC dataset access.
+Uses bids_hub (neuroimaging-go-brrrr) for validation constants only.
+Data loading via standard datasets.load_dataset().
 """
 
 from __future__ import annotations
@@ -152,9 +153,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-# Import from neuroimaging-go-brrrr (git dependency)
-from bids_hub import get_arc_features, validate_arc_download
+# Import ONLY validation constants from bids_hub (for sanity checking)
+# NOTE: We do NOT use get_arc_features, validate_arc_download, or build_arc_file_table
+# Those are for UPLOADING datasets, not consuming them.
 from bids_hub.validation.arc import ARC_VALIDATION_CONFIG
+
+from datasets import load_dataset
 
 if TYPE_CHECKING:
     from datasets import Dataset
@@ -237,16 +241,15 @@ def _verify_sample_counts_against_bids_hub(samples: list[ARCSample]) -> None:
 ### 3.2 Key Imports to Add
 
 ```python
-# For CONSUMPTION (training), only import validation constants:
+# For CONSUMPTION (training), ONLY import validation constants:
 from bids_hub.validation.arc import ARC_VALIDATION_CONFIG
-
-# Optional: For validating local BIDS directories
-from bids_hub import validate_arc_download
+# That's it. Nothing else from bids_hub.
 ```
 
-**NOT imported** (for UPLOAD, not consumption):
+**NOT imported** (for UPLOAD or local BIDS validation, not HuggingFace consumption):
 - `get_arc_features` - Schema definition for building HF datasets
 - `build_arc_file_table` - For converting local BIDS to HF format
+- `validate_arc_download` - For validating local BIDS directories (we consume from HF Hub)
 
 ### 3.3 What to Keep vs Replace
 
@@ -316,10 +319,11 @@ These counts are for TRAINING, not raw dataset counts.
 ### 6.1 Verify bids_hub Import Works
 
 ```bash
-uv run python -c "from bids_hub import get_arc_features, validate_arc_download; print('bids_hub imports OK')"
+# We ONLY import ARC_VALIDATION_CONFIG - nothing else
+uv run python -c "from bids_hub.validation.arc import ARC_VALIDATION_CONFIG; print('bids_hub import OK')"
 ```
 
-### 6.2 Verify ARC_VALIDATION_CONFIG
+### 6.2 Verify ARC_VALIDATION_CONFIG Values
 
 ```bash
 uv run python -c "
@@ -359,9 +363,12 @@ For **consuming** the dataset (loading for training), we still need:
 3. Our stratification logic (paper-specific)
 
 We use `bids_hub` for:
-1. Validation constants (expected counts)
-2. Schema definitions (get_arc_features)
-3. Future: validation utilities
+1. Validation constants only (`ARC_VALIDATION_CONFIG.expected_counts`)
+
+We do NOT use:
+- `get_arc_features` - for uploading, not consumption
+- `validate_arc_download` - for local BIDS, we consume from HF Hub
+- `build_arc_file_table` - for uploading, not consumption
 
 ### The SIGKILL Workaround Location
 

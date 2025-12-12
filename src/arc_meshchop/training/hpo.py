@@ -36,8 +36,11 @@ class HPOTrial:
     status: str = "pending"
 
 
-def get_orion_search_space(config: HPOConfig) -> dict[str, str]:
-    """Get Orion search space definition.
+def get_search_space_strings(config: HPOConfig) -> dict[str, str]:
+    """Get search space as string definitions (legacy Orion format).
+
+    DEPRECATED: This function is kept for compatibility with old Orion code.
+    For new code, use Optuna's trial.suggest_* methods directly in run_hpo_trial().
 
     FROM PAPER Section 2:
     - channels: uniform(5, 21)
@@ -51,7 +54,7 @@ def get_orion_search_space(config: HPOConfig) -> dict[str, str]:
         config: HPO configuration.
 
     Returns:
-        Orion-compatible search space dictionary.
+        String-based search space dictionary.
     """
     return {
         "channels": f"uniform({config.channels_min}, {config.channels_max}, discrete=True)",
@@ -317,18 +320,23 @@ def run_hpo_trial(
 
 
 # ===========================================================================
-# Orion-based HPO (original paper method, kept for compatibility)
+# DEPRECATED: Orion-based HPO (original paper method)
 # ===========================================================================
+# NOTE: Orion is broken on Python 3.12 (uses deprecated configparser.SafeConfigParser)
+# Use the Optuna functions above (create_study, run_hpo_trial) instead.
+# This code is kept only for historical reference and will be removed in a future version.
 
 
-def run_hpo(
+def run_hpo_orion(
     hpo_config: HPOConfig,
     train_loader: DataLoader,
     val_loader: DataLoader,
     experiment_name: str = "meshnet_hpo",
     max_trials: int = 100,
 ) -> dict[str, Any]:
-    """Run hyperparameter optimization using Orion.
+    """DEPRECATED: Run hyperparameter optimization using Orion.
+
+    WARNING: Orion is broken on Python 3.12. Use create_study() + run_hpo_trial() instead.
 
     Uses Orion with ASHA for efficient HPO.
 
@@ -353,7 +361,7 @@ def run_hpo(
     # Create Orion experiment
     experiment = create_experiment(
         name=experiment_name,
-        space=get_orion_search_space(hpo_config),
+        space=get_search_space_strings(hpo_config),
         algorithms={
             "asha": {
                 "seed": hpo_config.seed,
@@ -425,3 +433,16 @@ def run_hpo(
     logger.info("Best params: %s", best_params)
 
     return {"best_dice": best_dice, "best_params": best_params}
+
+
+# ===========================================================================
+# Backward-compatible aliases (DEPRECATED)
+# ===========================================================================
+# These aliases are kept for backward compatibility with existing code/tests.
+# New code should use the renamed functions directly.
+
+get_orion_search_space = get_search_space_strings
+"""DEPRECATED: Use get_search_space_strings instead."""
+
+run_hpo = run_hpo_orion
+"""DEPRECATED: Use run_hpo_orion (for Orion) or create_study + run_hpo_trial (for Optuna)."""

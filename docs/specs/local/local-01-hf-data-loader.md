@@ -35,15 +35,15 @@ dependencies = [
 ### What We Import from bids_hub
 
 ```python
-from bids_hub import validate_arc_download  # Validation for local BIDS directories
-from bids_hub.validation.arc import (
-    ARC_VALIDATION_CONFIG,   # Full dataset counts: subjects=230, sessions=902, t2w=447
-)
+# ONLY import validation constants - nothing else
+from bids_hub.validation.arc import ARC_VALIDATION_CONFIG
+# Provides: expected_counts["subjects"]=230, ["sessions"]=902, ["t2w"]=447
 ```
 
-**NOT imported** (these are for UPLOAD, not consumption):
+**NOT imported** (these are for UPLOAD or local BIDS validation, not HuggingFace consumption):
 - `build_arc_file_table` - for building HF datasets from local BIDS
-- `get_arc_features` - schema definition for upload (HF infers schema on load)
+- `get_arc_features` - schema definition for upload
+- `validate_arc_download` - for validating local BIDS directories (we consume from HF Hub)
 
 ### What We Implement Ourselves
 
@@ -277,22 +277,15 @@ train_dataset = ARCDataset(
 )
 ```
 
-### Validate Local BIDS Directory
+### Note: We Don't Validate Local BIDS Directories
 
-```python
-from bids_hub import validate_arc_download
-from pathlib import Path
+We consume data from HuggingFace Hub via `datasets.load_dataset()`, NOT from local BIDS directories.
+The `validate_arc_download()` function in bids_hub is for validating local OpenNeuro downloads,
+which is not our use case.
 
-result = validate_arc_download(
-    Path("data/openneuro/ds004884"),
-    tolerance=0.0,
-)
-
-if result.all_passed:
-    print("Dataset valid!")
-else:
-    print(result.summary())
-```
+Our validation is done via:
+1. `ARC_VALIDATION_CONFIG` - sanity check expected counts
+2. `verify_sample_counts()` - enforce paper's 224 = 115 + 109
 
 ---
 

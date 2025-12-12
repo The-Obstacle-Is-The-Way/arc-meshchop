@@ -75,13 +75,16 @@ class HPOConfig:
     """Configuration for hyperparameter optimization.
 
     FROM PAPER Section 2:
-    - Orion framework with ASHA algorithm
+    - Paper used Orion framework with ASHA algorithm
     - Search on inner folds of first outer fold only
+
+    NOTE: Orion is broken on Python 3.12 (uses deprecated configparser.SafeConfigParser).
+    We use Optuna instead, which supports ASHA-equivalent pruning via SuccessiveHalvingPruner.
     """
 
-    # Framework
-    framework: Literal["orion"] = "orion"
-    algorithm: Literal["asha"] = "asha"
+    # Framework (Optuna replaces paper's Orion due to Python 3.12 compatibility)
+    framework: Literal["optuna"] = "optuna"
+    algorithm: Literal["asha", "tpe"] = "asha"  # ASHA via SuccessiveHalvingPruner
 
     # Search space (FROM PAPER)
     channels_min: int = 5

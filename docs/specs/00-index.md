@@ -39,15 +39,15 @@
 ┌─────────────────────────────┐     ┌──────────────────────────────┐
 │   neuroimaging-go-brrrr     │────▶│     HuggingFace Hub          │
 │   (Git Dependency)          │     │ hugging-science/arc-aphasia  │
-│   - Upload utilities        │     │                              │
-│   - Consumption utilities   │     └──────────────────────────────┘
+│   - Upload utilities (NOT   │     │                              │
+│     used by arc-meshchop)   │     └──────────────────────────────┘
 └─────────────────────────────┘                    │
               │                                    │
-              │ from bids_hub import ...           │ load_dataset()
+              │ ONLY: ARC_VALIDATION_CONFIG        │ load_dataset()
               ▼                                    ▼
          ┌──────────────────────────────────────────────┐
          │              arc-meshchop                    │
-         │   (Imports neuroimaging-go-brrrr as dep)     │
+         │   (Uses validation constants only)           │
          └──────────────────────────────────────────────┘
 ```
 
@@ -59,7 +59,8 @@
 
 **Important:**
 - `_references/neuroimaging-go-brrrr/` is a **local copy for reading** (not the import source)
-- We **import from `bids_hub`** module (the actual package)
+- We **ONLY import** `from bids_hub.validation.arc import ARC_VALIDATION_CONFIG`
+- We do NOT use: `build_arc_file_table`, `get_arc_features`, `validate_arc_download`
 - We use `load_dataset("hugging-science/arc-aphasia-bids")` for data access
 
 ---

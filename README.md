@@ -2,7 +2,7 @@
 
 **MeshNet stroke lesion segmentation on the Aphasia Recovery Cohort (ARC)**
 
-Replicating ["State-of-the-Art Stroke Lesion Segmentation at 1/1000th of Parameters"](https://arxiv.org/abs/2407.XXXXX) (Fedorov et al.) — a tiny 3D CNN that beats transformers.
+Replicating ["State-of-the-Art Stroke Lesion Segmentation at 1/1000th of Parameters"](https://arxiv.org/abs/2503.05531) (Fedorov et al.) — a tiny 3D CNN that beats transformers.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -32,7 +32,7 @@ uv sync --all-extras
 # Check your hardware
 uv run arc-meshchop info
 
-# Download dataset (goes to ~/.cache/huggingface/)
+# Download dataset (goes to ~/.cache/huggingface/hub/)
 uv run arc-meshchop download
 
 # Train MeshNet-26
