@@ -147,7 +147,7 @@ make ci
 ```bash
 # Implement training loop
 # Implement loss function
-# Optional: Implement HPO with Orion
+# Optional: Implement HPO with Optuna
 
 # Run: uv run pytest tests/test_training/ -v
 ```
