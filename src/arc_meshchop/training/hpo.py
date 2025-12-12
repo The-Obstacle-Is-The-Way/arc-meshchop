@@ -164,7 +164,8 @@ def run_hpo_trial(
     "HPO was conducted on the inner folds of the first outer fold"
 
     This trains on inner folds of specified outer fold and returns
-    the mean validation DICE.
+    the mean validation DICE. Uses epoch-level training with ASHA-style
+    pruning at each epoch for efficient HPO.
 
     Args:
         trial: Optuna Trial object.
@@ -227,8 +228,8 @@ def run_hpo_trial(
         random_seed=42,
     )
 
-    # Train on each inner fold and compute mean validation DICE
-    inner_dices = []
+    # Train on each inner fold with epoch-level pruning
+    inner_fold_dices = []
     device = get_device()
 
     for inner_fold in range(3):
@@ -268,28 +269,45 @@ def run_hpo_trial(
         )
 
         trainer = Trainer(model, config, device=device)
-        results = trainer.train(train_loader, val_loader)
 
-        inner_dices.append(results["best_dice"])
+        # Set up scheduler for epoch-level training
+        trainer.setup_scheduler(train_loader)
 
-        # Report intermediate value for pruning
-        intermediate_dice = sum(inner_dices) / len(inner_dices)
-        trial.report(intermediate_dice, inner_fold)
+        # Epoch-level training with pruning (ASHA-style)
+        # This allows pruning at epoch granularity, not just after full training
+        best_dice = 0.0
+        for epoch in range(epochs):
+            # Train one epoch
+            trainer.train_epoch(train_loader)
 
-        # Early stopping via pruner
-        if trial.should_prune():
-            try:
-                import optuna
-            except ImportError:
-                pass
-            else:
-                raise optuna.TrialPruned()
+            # Validate and get DICE
+            val_metrics = trainer.validate(val_loader)
+            val_dice = val_metrics.get("dice", 0.0)
+
+            if val_dice > best_dice:
+                best_dice = val_dice
+
+            # Report intermediate value for ASHA-style pruning
+            # Step is (inner_fold * epochs + epoch) to give unique step across folds
+            step = inner_fold * epochs + epoch
+            trial.report(best_dice, step)
+
+            # Check for pruning at each epoch
+            if trial.should_prune():
+                try:
+                    import optuna
+                except ImportError:
+                    pass
+                else:
+                    raise optuna.TrialPruned()
+
+        inner_fold_dices.append(best_dice)
 
         # Clear CUDA cache between folds
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-    mean_dice = sum(inner_dices) / len(inner_dices)
+    mean_dice = sum(inner_fold_dices) / len(inner_fold_dices)
     logger.info("Trial %d: Mean validation DICE = %.4f", trial.number, mean_dice)
 
     return mean_dice

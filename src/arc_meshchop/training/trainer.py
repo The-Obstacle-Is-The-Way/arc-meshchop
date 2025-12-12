@@ -395,3 +395,55 @@ class Trainer:
             )
 
         logger.info("Loaded checkpoint: %s", path)
+
+    def train_epoch(self, train_loader: DataLoader) -> dict[str, float]:
+        """Run single training epoch (public API for HPO).
+
+        This is a public wrapper around _train_epoch for use in
+        hyperparameter optimization where epoch-level control is needed.
+
+        Args:
+            train_loader: Training data loader.
+
+        Returns:
+            Dictionary with training metrics (loss).
+        """
+        loss = self._train_epoch(train_loader)
+        self.state.epoch += 1
+        return {"loss": loss}
+
+    def validate(
+        self,
+        val_loader: DataLoader,
+        metrics_calculator: SegmentationMetrics | None = None,
+    ) -> dict[str, float]:
+        """Run validation (public API for HPO).
+
+        This is a public wrapper around _validate_epoch for use in
+        hyperparameter optimization where epoch-level control is needed.
+
+        Args:
+            val_loader: Validation data loader.
+            metrics_calculator: Optional metrics calculator.
+
+        Returns:
+            Dictionary with validation metrics (dice, loss).
+        """
+        return self._validate_epoch(val_loader, metrics_calculator)
+
+    def setup_scheduler(self, train_loader: DataLoader) -> None:
+        """Set up OneCycleLR scheduler for epoch-level training.
+
+        Must be called before using train_epoch() for HPO.
+
+        Args:
+            train_loader: Training data loader (needed for total_steps).
+        """
+        total_steps = self.config.epochs * len(train_loader)
+        self.scheduler = create_scheduler(
+            self.optimizer,
+            max_lr=self.config.max_lr,
+            total_steps=total_steps,
+            pct_start=self.config.pct_start,
+            div_factor=self.config.div_factor,
+        )
