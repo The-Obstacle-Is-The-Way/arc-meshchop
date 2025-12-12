@@ -144,12 +144,15 @@ class Trainer:
             Dictionary with final metrics.
         """
         # Create scheduler with total steps
+        # NOTE: div_factor=100 is critical for paper parity
+        # FROM PAPER: "starts at 1/100th of the max learning rate"
         total_steps = self.config.epochs * len(train_loader)
         self.scheduler = create_scheduler(
             self.optimizer,
             max_lr=self.config.max_lr,
             total_steps=total_steps,
             pct_start=self.config.pct_start,
+            div_factor=self.config.div_factor,
         )
 
         logger.info(
