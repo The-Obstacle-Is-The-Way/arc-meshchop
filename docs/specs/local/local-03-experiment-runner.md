@@ -824,6 +824,357 @@ def experiment(
     typer.echo(f"Results: {output_dir / 'experiment_results.json'}")
 ```
 
+### 2.4 Hyperparameter Optimization Workflow
+
+The paper uses HPO on inner folds of outer fold 0 to find optimal hyperparameters.
+This spec supports **two modes**:
+
+#### Mode A: Use Paper's Published Hyperparameters (Quick Replication)
+
+The paper already published their optimal hyperparameters from HPO:
+
+| Parameter | Paper Value | CLI Default |
+|-----------|-------------|-------------|
+| Learning rate | 0.001 | `--lr 0.001` |
+| Weight decay | 3e-5 | `--wd 3e-5` |
+| Background weight | 0.5 | `--bg-weight 0.5` |
+| Warmup | 1% | `--warmup 0.01` |
+| div_factor | 100 | `--div-factor 100` |
+| Channels | 26 | `--variant meshnet_26` |
+
+```bash
+# Quick replication: use paper's hyperparameters directly
+uv run arc-meshchop experiment \
+    --variant meshnet_26 \
+    --lr 0.001 --wd 3e-5 --bg-weight 0.5 --warmup 0.01 --div-factor 100
+```
+
+#### Mode B: Run HPO Sweep (Full Paper Protocol)
+
+To fully replicate the paper's methodology, run HPO on outer fold 0's inner folds:
+
+**Step 1: Run HPO on Outer Fold 0**
+
+```bash
+# HPO sweep using Optuna (Orion alternative for Python 3.12+ compatibility)
+uv run arc-meshchop hpo \
+    --data-dir data/arc \
+    --output experiments/hpo \
+    --outer-fold 0 \
+    --max-trials 100 \
+    --epochs 50
+```
+
+**HPO Search Space (FROM PAPER Section 2):**
+
+| Parameter | Distribution | Range | Source |
+|-----------|--------------|-------|--------|
+| channels | uniform int | [5, 21] | Paper: "number of channels to be 26 for our largest model" |
+| learning_rate | log-uniform | [1e-4, 4e-2] | Paper HPO range |
+| weight_decay | log-uniform | [1e-4, 4e-2] | Paper HPO range |
+| bg_weight | uniform | [0, 1] | Paper HPO range |
+| warmup_pct | choice | {0.02, 0.1, 0.2} | Paper HPO range |
+
+**Step 2: Extract Best Hyperparameters**
+
+```bash
+# Get best params from HPO results
+cat experiments/hpo/best_params.json
+```
+
+**Step 3: Run Full Experiment with HPO-Found Params**
+
+```bash
+# Use HPO-found hyperparameters for all 90 runs
+uv run arc-meshchop experiment \
+    --variant meshnet_26 \
+    --lr $(jq -r .learning_rate experiments/hpo/best_params.json) \
+    --wd $(jq -r .weight_decay experiments/hpo/best_params.json) \
+    --bg-weight $(jq -r .bg_weight experiments/hpo/best_params.json) \
+    --warmup $(jq -r .warmup_pct experiments/hpo/best_params.json)
+```
+
+#### HPO CLI Command
+
+**Add to:** `src/arc_meshchop/cli/main.py`
+
+```python
+@app.command()
+def hpo(
+    data_dir: Annotated[
+        Path,
+        typer.Option("--data-dir", "-d", help="Directory with dataset_info.json"),
+    ] = Path("data/arc"),
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Output directory for HPO results"),
+    ] = Path("experiments/hpo"),
+    outer_fold: Annotated[
+        int,
+        typer.Option("--outer-fold", help="Outer fold for HPO (paper uses 0)"),
+    ] = 0,
+    max_trials: Annotated[
+        int,
+        typer.Option("--max-trials", "-n", help="Maximum HPO trials"),
+    ] = 100,
+    epochs: Annotated[
+        int,
+        typer.Option("--epochs", "-e", help="Epochs per trial"),
+    ] = 50,
+    pruning: Annotated[
+        bool,
+        typer.Option("--pruning/--no-pruning", help="Enable ASHA-style pruning"),
+    ] = True,
+) -> None:
+    """Run hyperparameter optimization.
+
+    FROM PAPER Section 2:
+    "HPO was conducted on the inner folds of the first outer fold"
+    "We employed the Asynchronous Successive Halving Algorithm (ASHA)"
+
+    This replicates the paper's HPO process using Optuna with ASHA pruning.
+    Results can be passed to the `experiment` command.
+    """
+    import json
+    import optuna
+    from arc_meshchop.training.hpo import run_hpo_trial, create_study
+
+    typer.echo(f"Running HPO on outer fold {outer_fold}")
+    typer.echo(f"Max trials: {max_trials}, Epochs: {epochs}")
+
+    study = create_study(
+        study_name=f"meshnet_hpo_outer{outer_fold}",
+        pruning=pruning,
+    )
+
+    study.optimize(
+        lambda trial: run_hpo_trial(
+            trial,
+            data_dir=data_dir,
+            outer_fold=outer_fold,
+            epochs=epochs,
+        ),
+        n_trials=max_trials,
+    )
+
+    # Save best params
+    output_dir.mkdir(parents=True, exist_ok=True)
+    best_params = {
+        "learning_rate": study.best_params["learning_rate"],
+        "weight_decay": study.best_params["weight_decay"],
+        "bg_weight": study.best_params["bg_weight"],
+        "warmup_pct": study.best_params["warmup_pct"],
+        "best_dice": study.best_value,
+        "n_trials": len(study.trials),
+    }
+
+    params_path = output_dir / "best_params.json"
+    params_path.write_text(json.dumps(best_params, indent=2))
+
+    typer.echo(f"\nHPO Complete!")
+    typer.echo(f"Best DICE: {study.best_value:.4f}")
+    typer.echo(f"Best params: {params_path}")
+    typer.echo(f"\nTo run full experiment with these params:")
+    typer.echo(f"  uv run arc-meshchop experiment \\")
+    typer.echo(f"    --lr {best_params['learning_rate']:.6f} \\")
+    typer.echo(f"    --wd {best_params['weight_decay']:.6f} \\")
+    typer.echo(f"    --bg-weight {best_params['bg_weight']:.4f} \\")
+    typer.echo(f"    --warmup {best_params['warmup_pct']:.4f}")
+```
+
+#### HPO Implementation
+
+**File:** `src/arc_meshchop/training/hpo.py`
+
+```python
+"""Hyperparameter optimization with Optuna.
+
+FROM PAPER Section 2:
+"To optimize hyperparameters of MeshNet, we conducted a hyperparameter search
+using Orion, an asynchronous framework for black-box function optimization.
+We employed the Asynchronous Successive Halving Algorithm (ASHA)."
+
+NOTE: Uses Optuna instead of Orion for Python 3.12+ compatibility.
+Optuna's MedianPruner provides similar early-stopping behavior to ASHA.
+"""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import optuna
+
+if TYPE_CHECKING:
+    from optuna import Study, Trial
+
+logger = logging.getLogger(__name__)
+
+
+def create_study(
+    study_name: str = "meshnet_hpo",
+    pruning: bool = True,
+) -> Study:
+    """Create Optuna study with ASHA-like pruning.
+
+    Args:
+        study_name: Name for the study.
+        pruning: Enable MedianPruner (ASHA-like behavior).
+
+    Returns:
+        Configured Optuna study.
+    """
+    pruner = (
+        optuna.pruners.MedianPruner(
+            n_startup_trials=5,
+            n_warmup_steps=15,  # FROM PAPER: min_epochs=15
+            interval_steps=5,
+        )
+        if pruning
+        else optuna.pruners.NopPruner()
+    )
+
+    return optuna.create_study(
+        study_name=study_name,
+        direction="maximize",  # Maximize DICE
+        pruner=pruner,
+        sampler=optuna.samplers.TPESampler(seed=42),
+    )
+
+
+def run_hpo_trial(
+    trial: Trial,
+    data_dir: Path,
+    outer_fold: int = 0,
+    epochs: int = 50,
+) -> float:
+    """Run single HPO trial.
+
+    Trains on inner folds of specified outer fold,
+    returns mean validation DICE.
+
+    Args:
+        trial: Optuna trial object.
+        data_dir: Path to dataset.
+        outer_fold: Outer fold to use for HPO.
+        epochs: Training epochs.
+
+    Returns:
+        Mean validation DICE across inner folds.
+    """
+    import torch
+    from arc_meshchop.data import (
+        ARCDataset,
+        create_dataloaders,
+        create_stratification_labels,
+        generate_nested_cv_splits,
+        get_lesion_quintile,
+    )
+    from arc_meshchop.models import MeshNet
+    from arc_meshchop.training import Trainer, TrainingConfig
+    from arc_meshchop.utils.device import get_device
+
+    # Sample hyperparameters (FROM PAPER search space)
+    lr = trial.suggest_float("learning_rate", 1e-4, 4e-2, log=True)
+    wd = trial.suggest_float("weight_decay", 1e-4, 4e-2, log=True)
+    bg_weight = trial.suggest_float("bg_weight", 0.0, 1.0)
+    warmup = trial.suggest_categorical("warmup_pct", [0.02, 0.1, 0.2])
+
+    # Load dataset
+    import json
+    info_path = data_dir / "dataset_info.json"
+    with open(info_path) as f:
+        dataset_info = json.load(f)
+
+    image_paths = dataset_info["image_paths"]
+    mask_paths = dataset_info["mask_paths"]
+    lesion_volumes = dataset_info["lesion_volumes"]
+    acquisition_types = dataset_info["acquisition_types"]
+
+    # Generate splits
+    quintiles = [get_lesion_quintile(v) for v in lesion_volumes]
+    strat_labels = create_stratification_labels(quintiles, acquisition_types)
+
+    splits = generate_nested_cv_splits(
+        n_samples=len(image_paths),
+        stratification_labels=strat_labels,
+        num_outer_folds=3,
+        num_inner_folds=3,
+        random_seed=42,
+    )
+
+    # Train on each inner fold
+    inner_fold_dices = []
+    device = get_device()
+
+    for inner_fold in range(3):
+        split = splits.get_split(outer_fold, inner_fold)
+
+        train_dataset = ARCDataset(
+            image_paths=[Path(image_paths[i]) for i in split.train_indices],
+            mask_paths=[Path(mask_paths[i]) for i in split.train_indices],
+        )
+        val_dataset = ARCDataset(
+            image_paths=[Path(image_paths[i]) for i in split.val_indices],
+            mask_paths=[Path(mask_paths[i]) for i in split.val_indices],
+        )
+
+        train_loader, val_loader = create_dataloaders(
+            train_dataset, val_dataset, batch_size=1, num_workers=4
+        )
+
+        model = MeshNet(channels=26)  # HPO uses fixed channel count
+        config = TrainingConfig(
+            epochs=epochs,
+            learning_rate=lr,
+            max_lr=lr,
+            weight_decay=wd,
+            background_weight=bg_weight,
+            pct_start=warmup,
+            div_factor=100.0,  # Paper requirement
+            use_fp16=True,
+        )
+
+        trainer = Trainer(model, config, device=device)
+
+        # Report intermediate values for pruning
+        best_dice = 0.0
+        for epoch in range(epochs):
+            metrics = trainer.train_epoch(train_loader)
+            val_dice = trainer.validate(val_loader)["dice"]
+
+            if val_dice > best_dice:
+                best_dice = val_dice
+
+            # Report for ASHA-style pruning
+            trial.report(best_dice, epoch)
+
+            if trial.should_prune():
+                raise optuna.TrialPruned()
+
+        inner_fold_dices.append(best_dice)
+
+    # Return mean DICE across inner folds
+    mean_dice = sum(inner_fold_dices) / len(inner_fold_dices)
+    logger.info(
+        "Trial %d: lr=%.6f, wd=%.6f, bg=%.3f, warmup=%.2f -> DICE=%.4f",
+        trial.number, lr, wd, bg_weight, warmup, mean_dice
+    )
+
+    return mean_dice
+```
+
+#### HPO Checklist
+
+- [ ] Create `src/arc_meshchop/training/hpo.py`
+- [ ] Implement `create_study()` with ASHA-like pruning
+- [ ] Implement `run_hpo_trial()` with paper search space
+- [ ] Add `hpo` CLI command
+- [ ] Add `best_params.json` output format
+- [ ] Test HPO with quick run (5 trials, 5 epochs)
+- [ ] Document HPO → experiment workflow
+
 ---
 
 ## 3. Tests

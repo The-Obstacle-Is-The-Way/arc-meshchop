@@ -988,3 +988,31 @@ uploaded the data. Key fields expected:
 
 The filtering logic (especially `_determine_acquisition_type`) may need adjustment based on
 the actual metadata structure in the HuggingFace dataset. Test with real data and adjust as needed.
+
+### Acquisition Parsing Validation
+
+**IMPORTANT:** Before running full experiments, validate that acquisition type parsing works
+correctly on the real HuggingFace dataset:
+
+```bash
+# Quick validation of acquisition parsing
+uv run python -c "
+from arc_meshchop.data import load_arc_samples
+
+samples = load_arc_samples(verify_counts=False)  # Disable strict count check
+acq_counts = {}
+for s in samples:
+    acq_counts[s.acquisition_type] = acq_counts.get(s.acquisition_type, 0) + 1
+print('Acquisition type counts:', acq_counts)
+print('Expected: space_2x=115, space_no_accel=109, turbo_spin_echo=5')
+"
+```
+
+If counts don't match paper expectations:
+1. Check if HuggingFace cached filenames preserve BIDS `acq-*` entity
+2. Inspect actual filename format with `samples[0].image_path`
+3. Update `_determine_acquisition_type()` regex patterns as needed
+4. Re-run with `verify_counts=True` after fixing
+
+The `verify_counts=True` flag (default) will fail fast if counts don't match,
+preventing silent errors from propagating to training.
