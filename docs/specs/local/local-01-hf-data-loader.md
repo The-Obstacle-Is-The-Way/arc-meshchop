@@ -18,58 +18,45 @@ Currently, the infrastructure assumes paths exist. This spec implements the load
 
 ## IMPORTANT: Data Pipeline Architecture
 
-### The neuroimaging-go-brrrr Package
+### Native HuggingFace Approach
 
-**neuroimaging-go-brrrr** is a Python package that provides utilities for working with
-BIDS neuroimaging data on HuggingFace Hub. It handles both upload AND consumption.
+We use the **native HuggingFace `datasets` and `huggingface-hub`** libraries directly.
+This avoids git submodule issues and provides more control over the data loading process.
 
-**GitHub:** https://github.com/The-Obstacle-Is-The-Way/neuroimaging-go-brrrr
-
-### How We Use It
-
-1. **Add as git dependency** in `pyproject.toml`:
+**Dependencies** (already in `pyproject.toml`):
 ```toml
 dependencies = [
-    # ... other deps ...
-    # neuroimaging-go-brrrr v0.2.1 - BIDS/NIfTI utilities for HuggingFace
-    "neuroimaging-go-brrrr @ git+https://github.com/The-Obstacle-Is-The-Way/neuroimaging-go-brrrr.git@v0.2.1",
+    "datasets>=3.4.0",
+    "huggingface-hub>=0.32.0",
 ]
 ```
 
-2. **Import and use** the consumption utilities:
+### How We Use It
+
 ```python
-from bids_hub.datasets.arc import build_arc_file_table, get_arc_features
 from datasets import load_dataset
+from huggingface_hub import hf_hub_download
 
-# Option A: Load from HuggingFace Hub (recommended for training)
-ds = load_dataset("hugging-science/arc-aphasia-bids")
+# Load dataset metadata from HuggingFace Hub
+ds = load_dataset("hugging-science/arc-aphasia-bids", split="train")
 
-# Option B: Build file table from local BIDS (for development/testing)
-file_table = build_arc_file_table(Path("data/bids"))
+# Files are cached locally after first download
+# Access via row["t2w"], row["lesion"], etc.
 ```
-
-### What neuroimaging-go-brrrr Provides
-
-| Module | Function | Purpose |
-|--------|----------|---------|
-| `bids_hub.datasets.arc` | `build_arc_file_table()` | Build DataFrame of file paths from BIDS |
-| `bids_hub.datasets.arc` | `get_arc_features()` | Get HuggingFace Features schema |
-| `bids_hub.core.utils` | `find_single_nifti()` | Find NIfTI files in BIDS structure |
-| `bids_hub.core.builder` | `build_hf_dataset()` | Convert DataFrame to HF Dataset |
-
-### What We Do NOT Do
-
-- ❌ Import from `_references/neuroimaging-go-brrrr/` (that's just a local copy for reading)
-- ❌ Re-implement the BIDS parsing logic
-- ❌ Use hacky workarounds to access files
 
 ### What We DO
 
-- ✅ Add neuroimaging-go-brrrr as a **git dependency**
-- ✅ Import from `bids_hub` module
-- ✅ Use `load_dataset("hugging-science/arc-aphasia-bids")` for HuggingFace access
-- ✅ Use `build_arc_file_table()` for local BIDS access
+- ✅ Use native `datasets` library for HuggingFace access
+- ✅ Use `huggingface_hub` for direct file downloads when needed
+- ✅ Infer acquisition type from **cached file paths** (BIDS naming convention)
 - ✅ Pass extracted paths to our `ARCDataset` class
+- ✅ **Enforce 224 sample count** (115 SPACE 2x + 109 SPACE no accel) for paper parity
+
+### What We Do NOT Do
+
+- ❌ Fall back to FLAIR when T2w missing (paper requires T2w only)
+- ❌ Guess acquisition types without verification
+- ❌ Accept sample counts that don't match paper (must be exactly 224)
 
 ---
 
@@ -229,6 +216,8 @@ def load_arc_from_huggingface(
     include_space_no_accel: bool = True,
     exclude_turbo_spin_echo: bool = True,
     require_lesion_mask: bool = True,
+    strict_t2w: bool = True,
+    verify_counts: bool = True,
 ) -> ARCDatasetInfo:
     """Load ARC dataset from HuggingFace Hub.
 
@@ -247,13 +236,16 @@ def load_arc_from_huggingface(
         include_space_no_accel: Include SPACE without acceleration.
         exclude_turbo_spin_echo: Exclude turbo-spin echo sequences.
         require_lesion_mask: Only include samples with lesion masks.
+        strict_t2w: If True, only use T2w (no FLAIR fallback). Default True for paper parity.
+        verify_counts: If True, verify sample counts match paper (224 = 115 + 109).
+            Raises ValueError if counts don't match.
 
     Returns:
         ARCDatasetInfo with all sample metadata and paths.
 
     Raises:
         ImportError: If datasets library not installed.
-        ValueError: If no samples match filters.
+        ValueError: If no samples match filters, or if verify_counts=True and counts don't match.
     """
     try:
         from datasets import load_dataset
@@ -283,6 +275,7 @@ def load_arc_from_huggingface(
         include_space_no_accel=include_space_no_accel,
         exclude_turbo_spin_echo=exclude_turbo_spin_echo,
         require_lesion_mask=require_lesion_mask,
+        strict_t2w=strict_t2w,
     )
 
     if not samples:
@@ -293,13 +286,19 @@ def load_arc_from_huggingface(
 
     logger.info(
         "Filtered to %d samples (space_2x=%s, space_no_accel=%s, "
-        "exclude_tse=%s, require_mask=%s)",
+        "exclude_tse=%s, require_mask=%s, strict_t2w=%s)",
         len(samples),
         include_space_2x,
         include_space_no_accel,
         exclude_turbo_spin_echo,
         require_lesion_mask,
+        strict_t2w,
     )
+
+    # Verify sample counts match paper requirements
+    if verify_counts:
+        verify_sample_counts(samples)
+        logger.info("✅ Sample count verification passed: 224 samples (115 space_2x + 109 space_no_accel)")
 
     return ARCDatasetInfo(samples=samples)
 
@@ -310,6 +309,7 @@ def _extract_samples(
     include_space_no_accel: bool,
     exclude_turbo_spin_echo: bool,
     require_lesion_mask: bool,
+    strict_t2w: bool = True,
 ) -> list[ARCSample]:
     """Extract and filter samples from HuggingFace dataset.
 
@@ -319,6 +319,7 @@ def _extract_samples(
         include_space_no_accel: Include SPACE no acceleration.
         exclude_turbo_spin_echo: Exclude TSE sequences.
         require_lesion_mask: Require lesion mask.
+        strict_t2w: If True, ONLY use T2w (no FLAIR fallback). Default True for paper parity.
 
     Returns:
         List of ARCSample objects.
@@ -334,18 +335,35 @@ def _extract_samples(
             continue
 
         # Get T2-weighted image (primary modality for lesion segmentation)
-        # The paper uses T2w for lesion visibility
+        # FROM PAPER: Uses T2-weighted images exclusively
         t2w = row.get("t2w")
         if t2w is None:
-            # Fall back to FLAIR if T2w not available
-            t2w = row.get("flair")
-        if t2w is None:
+            if strict_t2w:
+                # Paper parity mode: Skip sessions without T2w
+                # DO NOT fall back to FLAIR - paper only uses T2w
+                continue
+            else:
+                # Non-parity mode: Allow FLAIR fallback for experimentation
+                t2w = row.get("flair")
+                if t2w is None:
+                    continue
+
+        # Extract path first (needed for acquisition type inference)
+        image_path = _get_nifti_path(t2w)
+        if image_path is None:
             continue
 
-        # Determine acquisition type from metadata
-        # NOTE: This filtering logic may need adjustment based on
-        # actual HuggingFace dataset structure
-        acq_type = _determine_acquisition_type(row)
+        # Determine acquisition type from BIDS filename (primary) or metadata (fallback)
+        acq_type = _determine_acquisition_type(row, image_path)
+
+        # Reject unknown acquisition types in parity mode
+        if acq_type == "unknown":
+            logger.warning(
+                "Unknown acquisition type for sample %d (path: %s). "
+                "Skipping - cannot verify paper compliance.",
+                idx, image_path
+            )
+            continue
 
         # Apply acquisition type filters
         if exclude_turbo_spin_echo and acq_type == "turbo_spin_echo":
@@ -355,12 +373,9 @@ def _extract_samples(
         if not include_space_no_accel and acq_type == "space_no_accel":
             continue
 
-        # Extract paths from NIfTI objects
-        # HuggingFace Nifti() type provides path or bytes
-        image_path = _get_nifti_path(t2w)
+        # Extract mask path
         mask_path = _get_nifti_path(lesion) if lesion else None
-
-        if image_path is None or (require_lesion_mask and mask_path is None):
+        if require_lesion_mask and mask_path is None:
             continue
 
         # Compute lesion volume if mask available
@@ -380,49 +395,79 @@ def _extract_samples(
     return samples
 
 
-def _determine_acquisition_type(row: dict) -> str:
-    """Determine acquisition type from row metadata.
+def _determine_acquisition_type(row: dict, file_path: str | None) -> str:
+    """Determine acquisition type from BIDS filename or row metadata.
 
     FROM PAPER:
     - SPACE with 2x in-plane acceleration: 115 scans
     - SPACE without acceleration: 109 scans
     - Turbo-spin echo (excluded): 5 scans
 
+    Acquisition type is inferred from BIDS filename conventions:
+    - `acq-space2x` or `acq-SPACE2x` → space_2x
+    - `acq-space` or `acq-SPACE` (no acceleration) → space_no_accel
+    - `acq-tse` or `acq-TSE` → turbo_spin_echo
+
     Args:
         row: Dataset row with metadata.
+        file_path: Cached file path (BIDS naming) for acquisition inference.
 
     Returns:
         Acquisition type string.
     """
-    # Check for acquisition metadata
-    # The actual field names depend on HuggingFace dataset structure
-    # This may need adjustment based on actual data
+    import re
 
-    # Try to get from explicit metadata
+    # Primary method: Parse BIDS filename for acquisition entity
+    # BIDS format: sub-XXX_ses-X_acq-XXXXX_T2w.nii.gz
+    if file_path:
+        file_path_lower = str(file_path).lower()
+
+        # Look for acq-* entity in filename
+        acq_match = re.search(r'acq-([a-z0-9]+)', file_path_lower)
+        if acq_match:
+            acq_value = acq_match.group(1)
+
+            if 'tse' in acq_value or 'turbo' in acq_value:
+                return "turbo_spin_echo"
+            elif 'space2x' in acq_value or '2x' in acq_value:
+                return "space_2x"
+            elif 'space' in acq_value:
+                return "space_no_accel"
+
+    # Fallback: Check row metadata (less reliable)
     acq = row.get("acquisition", row.get("acq", ""))
+    acq_str = str(acq).lower()
 
-    if "tse" in str(acq).lower() or "turbo" in str(acq).lower():
+    if "tse" in acq_str or "turbo" in acq_str:
         return "turbo_spin_echo"
-    elif "2x" in str(acq) or "acc" in str(acq).lower():
+    elif "2x" in acq_str:
         return "space_2x"
-    else:
+    elif "space" in acq_str:
         return "space_no_accel"
 
+    # UNKNOWN - Must be verified manually
+    # In parity mode, this should raise an error
+    return "unknown"
 
-def _get_nifti_path(nifti_obj) -> str | None:
+
+def _get_nifti_path(nifti_obj, cache_dir: Path | None = None) -> str | None:
     """Extract file path from HuggingFace Nifti object.
 
     HuggingFace Nifti() feature type can provide:
     - A file path (string)
-    - NIfTI bytes directly
+    - NIfTI bytes directly (will be written to cache)
     - A nibabel image object
 
     Args:
         nifti_obj: HuggingFace Nifti object.
+        cache_dir: Directory to cache bytes data (if None, uses temp dir).
 
     Returns:
         File path string or None.
     """
+    import tempfile
+    import hashlib
+
     if nifti_obj is None:
         return None
 
@@ -430,19 +475,107 @@ def _get_nifti_path(nifti_obj) -> str | None:
     if isinstance(nifti_obj, str):
         return nifti_obj
 
-    # If it's a dict with path
+    # If it's a dict with path or bytes
     if isinstance(nifti_obj, dict):
-        return nifti_obj.get("path", nifti_obj.get("bytes"))
+        # Prefer path over bytes
+        if "path" in nifti_obj and nifti_obj["path"]:
+            return nifti_obj["path"]
+
+        # Handle bytes - write to cache file
+        if "bytes" in nifti_obj and nifti_obj["bytes"]:
+            data = nifti_obj["bytes"]
+            # Create deterministic filename from content hash
+            content_hash = hashlib.md5(data).hexdigest()[:12]
+            if cache_dir:
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                cache_path = cache_dir / f"nifti_{content_hash}.nii.gz"
+            else:
+                cache_path = Path(tempfile.gettempdir()) / f"arc_nifti_{content_hash}.nii.gz"
+
+            if not cache_path.exists():
+                cache_path.write_bytes(data)
+
+            return str(cache_path)
 
     # If it's a nibabel image, try to get filename
     if hasattr(nifti_obj, "get_filename"):
-        return nifti_obj.get_filename()
+        filename = nifti_obj.get_filename()
+        if filename:
+            return filename
 
     # If it has a path attribute
     if hasattr(nifti_obj, "path"):
         return nifti_obj.path
 
     return None
+
+
+def verify_sample_counts(samples: list[ARCSample]) -> None:
+    """Verify sample counts match paper requirements.
+
+    FROM PAPER Section 2:
+    - 115 SPACE with 2x acceleration
+    - 109 SPACE without acceleration
+    - 5 TSE excluded
+    - Total: 224 usable scans
+
+    Args:
+        samples: List of extracted samples.
+
+    Raises:
+        ValueError: If counts don't match expected values.
+    """
+    space_2x_count = sum(1 for s in samples if s.acquisition_type == "space_2x")
+    space_no_accel_count = sum(1 for s in samples if s.acquisition_type == "space_no_accel")
+    tse_count = sum(1 for s in samples if s.acquisition_type == "turbo_spin_echo")
+    unknown_count = sum(1 for s in samples if s.acquisition_type == "unknown")
+    total = len(samples)
+
+    logger.info(
+        "Sample counts: space_2x=%d, space_no_accel=%d, tse=%d, unknown=%d, total=%d",
+        space_2x_count, space_no_accel_count, tse_count, unknown_count, total
+    )
+
+    # Verify against paper
+    expected_space_2x = 115
+    expected_space_no_accel = 109
+    expected_total = 224
+
+    warnings = []
+
+    if space_2x_count != expected_space_2x:
+        warnings.append(
+            f"SPACE 2x count mismatch: got {space_2x_count}, expected {expected_space_2x}"
+        )
+
+    if space_no_accel_count != expected_space_no_accel:
+        warnings.append(
+            f"SPACE no-accel count mismatch: got {space_no_accel_count}, expected {expected_space_no_accel}"
+        )
+
+    if total != expected_total:
+        warnings.append(
+            f"Total count mismatch: got {total}, expected {expected_total}"
+        )
+
+    if tse_count > 0:
+        warnings.append(
+            f"TSE samples should be excluded: found {tse_count}"
+        )
+
+    if unknown_count > 0:
+        warnings.append(
+            f"Unknown acquisition types found: {unknown_count} samples"
+        )
+
+    if warnings:
+        for w in warnings:
+            logger.warning(w)
+        raise ValueError(
+            f"Sample count verification failed. "
+            f"Expected 224 (115 space_2x + 109 space_no_accel), got {total}. "
+            f"Issues: {'; '.join(warnings)}"
+        )
 
 
 def _compute_lesion_volume_from_nifti(nifti_obj) -> int:

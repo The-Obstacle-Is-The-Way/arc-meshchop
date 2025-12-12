@@ -70,9 +70,12 @@ For a successful replication with minor variations:
 
 | Metric | Minimum | Rationale |
 |--------|---------|-----------|
-| DICE | ≥ 0.85 | Paper: "0.85 threshold for reliable segmentation" |
+| DICE | ≥ 0.85 | Within 3% of paper target (0.876), acceptable for replication |
 | Parameters | 147,474 | Must match paper exactly |
 | Architecture | 10-layer symmetric | Must match paper dilation pattern |
+
+> **NOTE:** The 0.85 minimum is a practical threshold for replication attempts,
+> not an explicit claim from the paper. The paper achieves 0.876 for MeshNet-26.
 
 ---
 
@@ -181,6 +184,9 @@ def validate_parity(
 ) -> ParityResult:
     """Validate experiment results against paper.
 
+    IMPORTANT: Paper parity is judged on TEST metrics (outer fold holdout),
+    NOT validation metrics. The summary should contain test_mean_dice, etc.
+
     Args:
         experiment_results: Path to experiment_results.json or dict.
         model_variant: Model variant to validate.
@@ -195,20 +201,35 @@ def validate_parity(
     else:
         results = experiment_results
 
-    # Extract metrics
+    # Extract metrics - PRIORITIZE TEST metrics for paper parity
     summary = results.get("summary", results)
-    achieved_dice = summary.get("mean_dice", summary.get("dice_mean"))
-    achieved_std = summary.get("std_dice", summary.get("dice_std"))
 
-    # Get test results if available
+    # PRIMARY: Use test metrics (from outer fold evaluation)
+    # These are what the paper reports in Table 1
+    achieved_dice = summary.get("test_mean_dice")
+    achieved_std = summary.get("test_std_dice")
+    achieved_avd = summary.get("test_mean_avd")
+    achieved_mcc = summary.get("test_mean_mcc")
+
+    # FALLBACK: Use test_results directly if summary doesn't have test metrics
     test_results = results.get("test_results", [])
-    if test_results:
+    if achieved_dice is None and test_results:
         test_dices = [t["test_dice"] for t in test_results]
         test_avds = [t["test_avd"] for t in test_results]
         test_mccs = [t["test_mcc"] for t in test_results]
+        achieved_dice = np.mean(test_dices)
+        achieved_std = np.std(test_dices)
         achieved_avd = np.mean(test_avds)
         achieved_mcc = np.mean(test_mccs)
-    else:
+
+    # LAST RESORT: Fall back to validation metrics (NOT recommended for parity)
+    if achieved_dice is None:
+        logger.warning(
+            "No test metrics found in results. Using validation metrics, "
+            "but this may not accurately reflect paper parity."
+        )
+        achieved_dice = summary.get("val_mean_dice", summary.get("mean_dice", 0.0))
+        achieved_std = summary.get("val_std_dice", summary.get("std_dice", 0.0))
         achieved_avd = summary.get("avd_mean", 0.3)
         achieved_mcc = summary.get("mcc_mean", 0.7)
 
@@ -389,10 +410,14 @@ def run_statistical_comparison(
 ) -> dict:
     """Run statistical comparison against paper results.
 
-    Uses one-sample t-test against paper mean.
+    Uses Wilcoxon signed-rank test (as per paper methodology).
 
     FROM PAPER:
     "p < 0.05, Holm-corrected Wilcoxon test"
+
+    For single-sample comparison against a known population mean,
+    we use Wilcoxon signed-rank test on (sample - paper_mean) vs 0.
+    This tests whether the median difference is significantly different from 0.
 
     Args:
         our_results: List of DICE scores from our experiment.
@@ -403,12 +428,29 @@ def run_statistical_comparison(
     Returns:
         Dictionary with statistical test results.
     """
-    # One-sample t-test against paper mean
-    t_stat, p_value = stats.ttest_1samp(our_results, paper_mean)
+    from scipy.stats import wilcoxon
 
-    # Effect size (Cohen's d)
     our_mean = np.mean(our_results)
     our_std = np.std(our_results)
+
+    # Wilcoxon signed-rank test (paper methodology)
+    # Test if our results differ significantly from paper mean
+    # by testing (our_results - paper_mean) against 0
+    differences = np.array(our_results) - paper_mean
+
+    # Handle case where all differences are 0 (perfect match)
+    if np.allclose(differences, 0):
+        p_value = 1.0
+        statistic = 0.0
+    else:
+        try:
+            statistic, p_value = wilcoxon(differences, alternative="two-sided")
+        except ValueError:
+            # Wilcoxon requires at least some non-zero differences
+            p_value = 1.0
+            statistic = 0.0
+
+    # Effect size (Cohen's d for reference)
     cohens_d = (our_mean - paper_mean) / np.sqrt((our_std**2 + paper_std**2) / 2)
 
     return {
@@ -416,7 +458,8 @@ def run_statistical_comparison(
         "our_std": float(our_std),
         "paper_mean": paper_mean,
         "paper_std": paper_std,
-        "t_statistic": float(t_stat),
+        "test_type": "Wilcoxon signed-rank",  # Paper methodology
+        "wilcoxon_statistic": float(statistic),
         "p_value": float(p_value),
         "significant": p_value < alpha,
         "cohens_d": float(cohens_d),

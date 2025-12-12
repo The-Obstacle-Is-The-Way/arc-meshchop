@@ -46,6 +46,7 @@ This spec covers:
 | Type | OneCycleLR | Paper Section 2 |
 | Max LR | 0.001 | Paper Section 2 |
 | pct_start (warmup) | 0.01 (1%) | Paper Section 2 |
+| div_factor | 100 | Paper Section 2: "starts at 1/100th of max learning rate" |
 | Epochs | 50 | Paper Section 2 |
 
 ### 1.4 MeshNet Hyperparameter Search Space
@@ -106,6 +107,7 @@ class TrainingConfig:
     scheduler: Literal["onecycle"] = "onecycle"
     max_lr: float = 0.001
     pct_start: float = 0.01  # 1% warmup
+    div_factor: float = 100.0  # Paper: "starts at 1/100th of max learning rate"
 
     # Loss (FROM PAPER)
     background_weight: float = 0.5
@@ -323,6 +325,7 @@ def create_scheduler(
     max_lr: float,
     total_steps: int,
     pct_start: float = 0.01,
+    div_factor: float = 100.0,
 ) -> optim.lr_scheduler.OneCycleLR:
     """Create OneCycleLR scheduler with paper defaults.
 
@@ -337,6 +340,7 @@ def create_scheduler(
         max_lr: Maximum learning rate.
         total_steps: Total training steps (epochs * steps_per_epoch).
         pct_start: Fraction of training for warmup.
+        div_factor: Divide max_lr by this to get initial_lr. FROM PAPER: 100 (starts at 1/100th of max_lr).
 
     Returns:
         Configured OneCycleLR scheduler.
@@ -346,6 +350,7 @@ def create_scheduler(
         max_lr=max_lr,
         total_steps=total_steps,
         pct_start=pct_start,
+        div_factor=div_factor,  # Paper requires 100 (start at max_lr/100)
         # PyTorch defaults: anneal_strategy='cos', cycle_momentum=True
     )
 ```

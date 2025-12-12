@@ -258,7 +258,7 @@ def train(
     ] = 50,
     learning_rate: Annotated[
         float,
-        typer.Option("--lr", help="Learning rate"),
+        typer.Option("--lr", help="Max learning rate (OneCycleLR max_lr)"),
     ] = 0.001,
     weight_decay: Annotated[
         float,
@@ -272,6 +272,10 @@ def train(
         float,
         typer.Option("--warmup", help="Warmup percentage for OneCycleLR"),
     ] = 0.01,
+    div_factor: Annotated[
+        float,
+        typer.Option("--div-factor", help="OneCycleLR div_factor (initial_lr = max_lr/div_factor)"),
+    ] = 100.0,  # FROM PAPER: "starts at 1/100th of the max learning rate"
     use_fp16: Annotated[
         bool,
         typer.Option("--fp16/--no-fp16", help="Use FP16 mixed precision"),
@@ -298,7 +302,7 @@ def train(
 
     FROM PAPER:
     - AdamW optimizer (lr=0.001, weight_decay=3e-5, eps=1e-4)
-    - OneCycleLR scheduler (1% warmup)
+    - OneCycleLR scheduler (1% warmup, starts at 1/100th of max_lr)
     - CrossEntropyLoss (weights=[0.5, 1.0], label_smoothing=0.01)
     - 50 epochs, batch size 1
     """
@@ -384,12 +388,15 @@ def train(
     typer.echo(f"MeshNet-{channels}: {sum(p.numel() for p in model.parameters()):,} parameters")
 
     # Create training config
+    # NOTE: div_factor=100 is critical for paper parity
+    # FROM PAPER: "starts at 1/100th of the max learning rate"
     config = TrainingConfig(
         epochs=epochs,
         learning_rate=learning_rate,
         max_lr=learning_rate,
         weight_decay=weight_decay,
         pct_start=warmup_pct,
+        div_factor=div_factor,  # Paper requires 100 (start at max_lr/100)
         background_weight=background_weight,
         use_fp16=use_fp16,
         checkpoint_dir=output_dir / f"fold_{outer_fold}_{inner_fold}",
@@ -464,7 +471,7 @@ def evaluate(
         generate_nested_cv_splits,
         get_lesion_quintile,
     )
-    from arc_meshchop.evaluation import calculate_metrics
+    from arc_meshchop.evaluation import SegmentationMetrics
     from arc_meshchop.models import MeshNet
     from arc_meshchop.utils.device import get_device
 
@@ -540,7 +547,9 @@ def evaluate(
     preds = torch.stack(all_preds)
     targets = torch.stack(all_targets)
 
-    metrics = calculate_metrics(preds, targets)
+    # Use SegmentationMetrics class (not the non-existent calculate_metrics function)
+    metrics_calculator = SegmentationMetrics()
+    metrics = metrics_calculator.compute_batch(preds, targets)
 
     typer.echo(f"\nResults:")
     typer.echo(f"  DICE: {metrics['dice']:.4f}")

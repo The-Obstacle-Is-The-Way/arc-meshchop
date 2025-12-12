@@ -98,12 +98,13 @@ class ExperimentConfig:
     num_inner_folds: int = 3
     num_restarts: int = 10
 
-    # Training (FROM PAPER)
+    # Training hyperparameters (FROM PAPER)
     epochs: int = 50
     learning_rate: float = 0.001
     weight_decay: float = 3e-5
     background_weight: float = 0.5
     warmup_pct: float = 0.01
+    div_factor: float = 100.0  # FROM PAPER: "starts at 1/100th of the max learning rate"
     use_fp16: bool = True
 
     # Execution
@@ -224,18 +225,73 @@ class ExperimentResult:
     end_time: str
     total_duration_hours: float
 
-    @property
-    def mean_dice(self) -> float:
-        """Overall mean DICE."""
-        all_dices = [r.best_dice for fold in self.folds for r in fold.runs]
-        return sum(all_dices) / len(all_dices)
+    # IMPORTANT: Paper reports TEST metrics, not validation metrics
+    # These properties compute from test_results (outer fold holdout)
 
     @property
-    def std_dice(self) -> float:
-        """Overall standard deviation."""
+    def test_mean_dice(self) -> float:
+        """Mean TEST DICE across outer folds (paper Table 1 metric)."""
+        if not self.test_results:
+            return 0.0
+        test_dices = [t["test_dice"] for t in self.test_results]
+        return sum(test_dices) / len(test_dices)
+
+    @property
+    def test_std_dice(self) -> float:
+        """Std of TEST DICE across outer folds."""
+        import numpy as np
+        if not self.test_results:
+            return 0.0
+        test_dices = [t["test_dice"] for t in self.test_results]
+        return float(np.std(test_dices))
+
+    @property
+    def test_mean_avd(self) -> float:
+        """Mean TEST AVD across outer folds."""
+        if not self.test_results:
+            return 0.0
+        test_avds = [t["test_avd"] for t in self.test_results]
+        return sum(test_avds) / len(test_avds)
+
+    @property
+    def test_std_avd(self) -> float:
+        """Std of TEST AVD across outer folds."""
+        import numpy as np
+        if not self.test_results:
+            return 0.0
+        test_avds = [t["test_avd"] for t in self.test_results]
+        return float(np.std(test_avds))
+
+    @property
+    def test_mean_mcc(self) -> float:
+        """Mean TEST MCC across outer folds."""
+        if not self.test_results:
+            return 0.0
+        test_mccs = [t["test_mcc"] for t in self.test_results]
+        return sum(test_mccs) / len(test_mccs)
+
+    @property
+    def test_std_mcc(self) -> float:
+        """Std of TEST MCC across outer folds."""
+        import numpy as np
+        if not self.test_results:
+            return 0.0
+        test_mccs = [t["test_mcc"] for t in self.test_results]
+        return float(np.std(test_mccs))
+
+    # Validation metrics (for debugging/monitoring, NOT for paper parity)
+    @property
+    def val_mean_dice(self) -> float:
+        """Overall mean validation DICE (for monitoring only)."""
+        all_dices = [r.best_dice for fold in self.folds for r in fold.runs]
+        return sum(all_dices) / len(all_dices) if all_dices else 0.0
+
+    @property
+    def val_std_dice(self) -> float:
+        """Overall std of validation DICE (for monitoring only)."""
         import numpy as np
         all_dices = [r.best_dice for fold in self.folds for r in fold.runs]
-        return float(np.std(all_dices))
+        return float(np.std(all_dices)) if all_dices else 0.0
 
 
 class ExperimentRunner:
@@ -418,6 +474,8 @@ class ExperimentRunner:
         model = MeshNet(channels=self.config.channels)
 
         # Training config
+        # NOTE: div_factor=100 is critical for paper parity
+        # FROM PAPER: "starts at 1/100th of the max learning rate"
         training_config = TrainingConfig(
             epochs=self.config.epochs,
             learning_rate=self.config.learning_rate,
@@ -425,6 +483,7 @@ class ExperimentRunner:
             weight_decay=self.config.weight_decay,
             background_weight=self.config.background_weight,
             pct_start=self.config.warmup_pct,
+            div_factor=self.config.div_factor,  # Paper requires 100
             use_fp16=self.config.use_fp16,
             checkpoint_dir=run_dir,
             random_seed=seed,
@@ -495,12 +554,13 @@ class ExperimentRunner:
             generate_nested_cv_splits,
             get_lesion_quintile,
         )
-        from arc_meshchop.evaluation import calculate_metrics
+        from arc_meshchop.evaluation import SegmentationMetrics
         from arc_meshchop.models import MeshNet
         from arc_meshchop.utils.device import get_device
 
         test_results = []
         device = get_device()
+        metrics_calculator = SegmentationMetrics()
 
         dataset_info = self._load_dataset_info()
         image_paths = dataset_info["image_paths"]
@@ -568,7 +628,7 @@ class ExperimentRunner:
             preds = torch.stack(all_preds)
             targets = torch.stack(all_targets)
 
-            metrics = calculate_metrics(preds, targets)
+            metrics = metrics_calculator.compute_batch(preds, targets)
 
             test_results.append({
                 "outer_fold": outer_fold,
@@ -622,10 +682,19 @@ class ExperimentRunner:
             ],
             "test_results": result.test_results,
             "summary": {
-                "mean_dice": result.mean_dice,
-                "std_dice": result.std_dice,
+                # PRIMARY: Test metrics (for paper parity - FROM PAPER Table 1)
+                "test_mean_dice": result.test_mean_dice,
+                "test_std_dice": result.test_std_dice,
+                "test_mean_avd": result.test_mean_avd,
+                "test_std_avd": result.test_std_avd,
+                "test_mean_mcc": result.test_mean_mcc,
+                "test_std_mcc": result.test_std_mcc,
+                # SECONDARY: Validation metrics (for monitoring only)
+                "val_mean_dice": result.val_mean_dice,
+                "val_std_dice": result.val_std_dice,
+                # Paper targets
                 "target_dice": 0.876,  # FROM PAPER
-                "paper_parity": result.mean_dice >= 0.86,
+                "paper_parity": result.test_mean_dice >= 0.86,  # Use TEST DICE for parity
             },
             "timing": {
                 "start_time": result.start_time,
@@ -680,6 +749,27 @@ def experiment(
         int,
         typer.Option("--epochs", "-e", help="Number of epochs per run"),
     ] = 50,
+    # Hyperparameters (FROM PAPER or from HPO)
+    learning_rate: Annotated[
+        float,
+        typer.Option("--lr", help="Max learning rate"),
+    ] = 0.001,
+    weight_decay: Annotated[
+        float,
+        typer.Option("--weight-decay", "--wd", help="Weight decay"),
+    ] = 3e-5,
+    background_weight: Annotated[
+        float,
+        typer.Option("--bg-weight", help="Background class weight"),
+    ] = 0.5,
+    warmup_pct: Annotated[
+        float,
+        typer.Option("--warmup", help="Warmup percentage for OneCycleLR"),
+    ] = 0.01,
+    div_factor: Annotated[
+        float,
+        typer.Option("--div-factor", help="OneCycleLR div_factor"),
+    ] = 100.0,  # FROM PAPER: "starts at 1/100th of the max learning rate"
     skip_completed: Annotated[
         bool,
         typer.Option("--skip-completed/--no-skip", help="Skip completed runs"),
@@ -689,6 +779,8 @@ def experiment(
 
     Runs all 90 configurations (3 outer × 3 inner × 10 restarts)
     and produces paper-comparable results.
+
+    Hyperparameters can be overridden (e.g., from HPO results).
 
     FROM PAPER:
     - MeshNet-26: 0.876 (0.016) DICE
@@ -704,21 +796,30 @@ def experiment(
         model_variant=variant,
         num_restarts=num_restarts,
         epochs=epochs,
+        learning_rate=learning_rate,
+        weight_decay=weight_decay,
+        background_weight=background_weight,
+        warmup_pct=warmup_pct,
+        div_factor=div_factor,
         skip_completed=skip_completed,
     )
 
     typer.echo(f"Running experiment: {variant}")
     typer.echo(f"Total runs: {config.total_runs}")
+    typer.echo(f"Hyperparameters: lr={learning_rate}, wd={weight_decay}, bg_weight={background_weight}")
     typer.echo(f"Output: {output_dir}")
 
     result = run_experiment(config)
 
+    # Report TEST metrics (not validation) for paper parity
     typer.echo("\n" + "=" * 60)
     typer.echo("EXPERIMENT COMPLETE")
     typer.echo("=" * 60)
     typer.echo(f"Model: MeshNet-{config.channels}")
-    typer.echo(f"DICE: {result.mean_dice:.4f} ± {result.std_dice:.4f}")
-    typer.echo(f"Paper Target: 0.876 (MeshNet-26)")
+    typer.echo(f"Test DICE: {result.test_mean_dice:.4f} ± {result.test_std_dice:.4f}")
+    typer.echo(f"Test AVD:  {result.test_mean_avd:.4f} ± {result.test_std_avd:.4f}")
+    typer.echo(f"Test MCC:  {result.test_mean_mcc:.4f} ± {result.test_std_mcc:.4f}")
+    typer.echo(f"Paper Target: DICE 0.876 (MeshNet-26)")
     typer.echo(f"Duration: {result.total_duration_hours:.1f} hours")
     typer.echo(f"Results: {output_dir / 'experiment_results.json'}")
 ```
