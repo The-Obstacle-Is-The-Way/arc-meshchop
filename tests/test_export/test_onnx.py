@@ -19,6 +19,7 @@ class TestONNXExport:
         from arc_meshchop.export.onnx_export import export_to_onnx
 
         model = meshnet_5()
+        model.eval()
         output_path = tmp_path / "model.onnx"
 
         export_to_onnx(
@@ -36,6 +37,7 @@ class TestONNXExport:
         from arc_meshchop.export.onnx_export import export_to_onnx, validate_onnx_export
 
         model = meshnet_5()
+        model.eval()
         output_path = tmp_path / "model.onnx"
 
         # Use same shape for export and validation
@@ -60,6 +62,7 @@ class TestONNXExport:
         from arc_meshchop.export.onnx_export import export_to_onnx
 
         model = meshnet_5()
+        model.eval()
 
         for size in [16, 32, 64]:
             output_path = tmp_path / f"model_{size}.onnx"
@@ -76,6 +79,7 @@ class TestONNXExport:
         from arc_meshchop.export.onnx_export import export_to_onnx
 
         model = meshnet_5()
+        model.eval()
         output_path = tmp_path / "model_dynamic.onnx"
 
         custom_dynamic_axes = {
@@ -98,6 +102,7 @@ class TestONNXExport:
         from arc_meshchop.export.onnx_export import export_to_onnx
 
         model = meshnet_5()
+        model.eval()
 
         for opset in [14, 15, 17]:
             output_path = tmp_path / f"model_opset{opset}.onnx"
@@ -115,6 +120,7 @@ class TestONNXExport:
         from arc_meshchop.export.onnx_export import export_to_onnx
 
         model = meshnet_5()
+        model.eval()
         output_path = tmp_path / "nested" / "dir" / "model.onnx"
 
         export_to_onnx(
@@ -197,9 +203,12 @@ class TestONNXQuantization:
 
     def test_fp16_quantization(self, tmp_path: Path) -> None:
         """Test FP16 quantization creates valid model."""
+        import onnxruntime as ort
+
         from arc_meshchop.export.onnx_export import export_to_onnx, quantize_onnx
 
         model = meshnet_5()
+        model.eval()
         onnx_path = tmp_path / "model.onnx"
         fp16_path = tmp_path / "model_fp16.onnx"
 
@@ -212,15 +221,25 @@ class TestONNXQuantization:
 
         quantize_onnx(onnx_path, fp16_path, quantization_type="fp16")
 
-        # FP16 model should be created and runnable
+        # FP16 model should be created and loadable
         assert fp16_path.exists()
         assert fp16_path.stat().st_size > 0
 
+        # Verify model loads and runs with ONNX Runtime
+        # FP16 models expect float16 input
+        session = ort.InferenceSession(str(fp16_path))
+        test_input = np.random.randn(1, 1, 32, 32, 32).astype(np.float16)
+        result = session.run(None, {"input": test_input})[0]
+        assert result.shape == (1, 2, 32, 32, 32)
+
     def test_int8_quantization(self, tmp_path: Path) -> None:
         """Test INT8 quantization creates valid model."""
+        import onnxruntime as ort
+
         from arc_meshchop.export.onnx_export import export_to_onnx, quantize_onnx
 
         model = meshnet_5()
+        model.eval()
         onnx_path = tmp_path / "model.onnx"
         int8_path = tmp_path / "model_int8.onnx"
 
@@ -233,14 +252,22 @@ class TestONNXQuantization:
 
         quantize_onnx(onnx_path, int8_path, quantization_type="int8")
 
+        # INT8 model should be created and loadable
         assert int8_path.exists()
         assert int8_path.stat().st_size > 0
+
+        # Verify model loads and runs with ONNX Runtime
+        session = ort.InferenceSession(str(int8_path))
+        test_input = np.random.randn(1, 1, 32, 32, 32).astype(np.float32)
+        result = session.run(None, {"input": test_input})[0]
+        assert result.shape == (1, 2, 32, 32, 32)
 
     def test_invalid_quantization_type(self, tmp_path: Path) -> None:
         """Test that invalid quantization type raises error."""
         from arc_meshchop.export.onnx_export import export_to_onnx, quantize_onnx
 
         model = meshnet_5()
+        model.eval()
         onnx_path = tmp_path / "model.onnx"
         invalid_path = tmp_path / "model_invalid.onnx"
 
@@ -263,6 +290,7 @@ class TestValidateONNXExport:
         from arc_meshchop.export.onnx_export import export_to_onnx, validate_onnx_export
 
         model = meshnet_5()
+        model.eval()
         output_path = tmp_path / "model.onnx"
 
         # Use same shape for export and validation
@@ -289,6 +317,7 @@ class TestValidateONNXExport:
         from arc_meshchop.export.onnx_export import export_to_onnx, validate_onnx_export
 
         model = meshnet_5()
+        model.eval()
         output_path = tmp_path / "model.onnx"
 
         export_to_onnx(

@@ -144,30 +144,35 @@ def export_model(
 
 def load_exported_model(
     path: Path | str,
-    format: str = "onnx",
+    output_format: str = "onnx",
 ) -> ort.InferenceSession:
     """Load an exported model for inference.
 
     Args:
         path: Path to exported model.
-        format: Export format ("onnx", "tfjs").
+        output_format: Export format ("onnx", "tfjs").
 
     Returns:
         ONNX Runtime InferenceSession ready for inference.
 
     Raises:
-        NotImplementedError: If format is "tfjs" (must load in JavaScript).
-        ValueError: If format is unknown.
+        ValueError: If output_format is unknown.
+        NotImplementedError: If output_format is "tfjs" (must load in JavaScript).
+        FileNotFoundError: If the model file does not exist (for ONNX format).
     """
     path = Path(path)
 
-    if format == "onnx":
-        return ort.InferenceSession(str(path))
-
-    elif format == "tfjs":
+    # Validate format first before checking path existence
+    if output_format == "tfjs":
         raise NotImplementedError(
             "TFJS models must be loaded in JavaScript. Use tf.loadGraphModel() in browser."
         )
 
-    else:
-        raise ValueError(f"Unknown format: {format}")
+    if output_format != "onnx":
+        raise ValueError(f"Unknown format: {output_format}")
+
+    # For ONNX, check file existence and load
+    if not path.exists():
+        raise FileNotFoundError(f"Model file not found: {path}")
+
+    return ort.InferenceSession(str(path))

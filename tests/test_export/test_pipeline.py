@@ -221,7 +221,7 @@ class TestLoadExportedModel:
         outputs = export_model(model, config)
 
         # Load and run inference
-        session = load_exported_model(outputs["onnx"], format="onnx")
+        session = load_exported_model(outputs["onnx"], output_format="onnx")
         test_input = np.random.randn(1, 1, 32, 32, 32).astype(np.float32)
         result = session.run(None, {"input": test_input})[0]
 
@@ -232,14 +232,21 @@ class TestLoadExportedModel:
         from arc_meshchop.export import load_exported_model
 
         with pytest.raises(NotImplementedError, match="TFJS models must be loaded in JavaScript"):
-            load_exported_model(tmp_path / "model_tfjs", format="tfjs")
+            load_exported_model(tmp_path / "model_tfjs", output_format="tfjs")
 
     def test_load_unknown_format_raises_error(self, tmp_path: Path) -> None:
         """Test that loading unknown format raises ValueError."""
         from arc_meshchop.export import load_exported_model
 
         with pytest.raises(ValueError, match="Unknown format"):
-            load_exported_model(tmp_path / "model", format="unknown")
+            load_exported_model(tmp_path / "model", output_format="unknown")
+
+    def test_load_missing_file_raises_error(self, tmp_path: Path) -> None:
+        """Test that loading non-existent model raises FileNotFoundError."""
+        from arc_meshchop.export import load_exported_model
+
+        with pytest.raises(FileNotFoundError, match="Model file not found"):
+            load_exported_model(tmp_path / "nonexistent.onnx", output_format="onnx")
 
 
 class TestBrainChopModelInfo:
@@ -326,11 +333,47 @@ class TestTFJSExport:
     @pytest.mark.slow
     def test_export_pytorch_to_tfjs(self, tmp_path: Path) -> None:
         """Test full PyTorch to TFJS export pipeline."""
-        # This test is skipped on Mac/Windows and requires TF dependencies
-        pytest.skip("TFJS export requires TensorFlow dependencies not in default install")
+        # Skip if TensorFlow dependencies not installed
+        pytest.importorskip("onnx_tf", reason="onnx-tf not installed")
+        pytest.importorskip("tensorflowjs", reason="tensorflowjs not installed")
+
+        from arc_meshchop.export.tfjs_export import export_pytorch_to_tfjs
+
+        model = meshnet_5()
+        model.eval()
+
+        result = export_pytorch_to_tfjs(
+            model,
+            tmp_path,
+            model_name="test_model",
+            input_shape=(1, 1, 32, 32, 32),
+        )
+
+        # Verify TFJS output directory exists with model.json
+        assert result.exists()
+        assert (result / "model.json").exists()
 
     @pytest.mark.slow
     def test_export_to_tfjs(self, tmp_path: Path) -> None:
         """Test ONNX to TFJS conversion."""
-        # This test is skipped on Mac/Windows and requires TF dependencies
-        pytest.skip("TFJS export requires TensorFlow dependencies not in default install")
+        # Skip if TensorFlow dependencies not installed
+        pytest.importorskip("onnx_tf", reason="onnx-tf not installed")
+        pytest.importorskip("tensorflowjs", reason="tensorflowjs not installed")
+
+        from arc_meshchop.export.onnx_export import export_to_onnx
+        from arc_meshchop.export.tfjs_export import export_to_tfjs
+
+        model = meshnet_5()
+        model.eval()
+
+        # First export to ONNX
+        onnx_path = tmp_path / "model.onnx"
+        export_to_onnx(model, onnx_path, input_shape=(1, 1, 32, 32, 32), simplify=False)
+
+        # Then convert to TFJS
+        tfjs_dir = tmp_path / "tfjs_model"
+        result = export_to_tfjs(onnx_path, tfjs_dir)
+
+        # Verify TFJS output
+        assert result.exists()
+        assert (result / "model.json").exists()

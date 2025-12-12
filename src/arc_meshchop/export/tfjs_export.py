@@ -70,7 +70,7 @@ def export_to_tfjs(
         # Fallback to command-line tool
         logger.info("onnx-tf not installed as Python package, trying CLI...")
         try:
-            subprocess.run(
+            result = subprocess.run(
                 [
                     "onnx-tf",
                     "convert",
@@ -79,10 +79,15 @@ def export_to_tfjs(
                     "-o",
                     str(saved_model_dir),
                 ],
-                check=True,
+                check=False,
                 capture_output=True,
                 text=True,
             )
+            if result.returncode != 0:
+                logger.error("onnx-tf CLI failed: %s", result.stderr)
+                raise subprocess.CalledProcessError(
+                    result.returncode, result.args, result.stdout, result.stderr
+                )
         except FileNotFoundError:
             raise ImportError(
                 "onnx-tf is not installed. Install with: pip install onnx-tf\n"
@@ -104,7 +109,12 @@ def export_to_tfjs(
     tfjs_cmd.extend([str(saved_model_dir), str(output_dir)])
 
     try:
-        subprocess.run(tfjs_cmd, check=True, capture_output=True, text=True)
+        result = subprocess.run(tfjs_cmd, check=False, capture_output=True, text=True)
+        if result.returncode != 0:
+            logger.error("tensorflowjs_converter failed: %s", result.stderr)
+            raise subprocess.CalledProcessError(
+                result.returncode, result.args, result.stdout, result.stderr
+            )
     except FileNotFoundError as e:
         raise ImportError(
             "tensorflowjs_converter is not installed. Install with: pip install tensorflowjs\n"

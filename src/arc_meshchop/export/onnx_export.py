@@ -49,11 +49,12 @@ def export_to_onnx(
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Set model to eval mode
+    # Set model to eval mode and move to CPU for ONNX export
+    model = model.cpu()
     model.eval()
 
-    # Create dummy input
-    dummy_input = torch.randn(*input_shape)
+    # Create dummy input on CPU (ONNX export requires CPU)
+    dummy_input = torch.randn(*input_shape, device="cpu")
 
     # Default dynamic axes for batch size
     if dynamic_axes is None:
