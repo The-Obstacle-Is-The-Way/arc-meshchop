@@ -35,14 +35,15 @@ dependencies = [
 ### What We Import from bids_hub
 
 ```python
-from bids_hub import (
-    get_arc_features,        # HuggingFace Features schema
-    validate_arc_download,   # Validation for local BIDS directories
-)
+from bids_hub import validate_arc_download  # Validation for local BIDS directories
 from bids_hub.validation.arc import (
-    ARC_VALIDATION_CONFIG,   # Expected counts: subjects=230, sessions=902, etc.
+    ARC_VALIDATION_CONFIG,   # Full dataset counts: subjects=230, sessions=902, t2w=447
 )
 ```
+
+**NOT imported** (these are for UPLOAD, not consumption):
+- `build_arc_file_table` - for building HF datasets from local BIDS
+- `get_arc_features` - schema definition for upload (HF infers schema on load)
 
 ### What We Implement Ourselves
 
@@ -51,6 +52,33 @@ Our domain-specific logic for the MeshNet paper:
 - Acquisition type filtering (space_2x, space_no_accel, TSE exclusion)
 - Paper-specific sample counts (224 = 115 + 109)
 - Stratification utilities
+
+### Count Distinction (CRITICAL)
+
+| Source | Count | Purpose |
+|--------|-------|---------|
+| `ARC_VALIDATION_CONFIG` | 230 subjects, 902 sessions, 447 t2w | Full ARC dataset integrity |
+| **Paper training subset** | **224 samples** (115 + 109) | MeshNet training data |
+
+These are DIFFERENT. The paper uses a SUBSET of ARC (only T2w with SPACE acquisition, with lesion masks).
+
+### Parity-Critical Behaviors (MUST PRESERVE)
+
+These behaviors ensure paper replication accuracy:
+
+1. **`strict_t2w=True`** (default): Only use T2w images, NO FLAIR fallback
+   - Paper explicitly uses T2-weighted images for lesion segmentation
+
+2. **Filename-first acquisition parsing**: Extract `acq-*` entity from BIDS filename
+   - Primary: `acq-space2x` → `space_2x`, `acq-space` → `space_no_accel`, `acq-tse` → `turbo_spin_echo`
+   - Fallback: Row metadata (less reliable)
+
+3. **Paper-specific count verification**: 224 = 115 + 109
+   - `verify_counts=True` (default) raises `ValueError` if mismatch
+   - These counts are HARDCODED (from paper), not from `ARC_VALIDATION_CONFIG`
+
+4. **Unknown acquisition rejection**: Skip samples with unrecognizable acquisition type
+   - Ensures only verified SPACE sequences are included
 
 ---
 
@@ -76,7 +104,8 @@ Our domain-specific logic for the MeshNet paper:
 ```python
 """HuggingFace dataset loader for ARC.
 
-Uses bids_hub (neuroimaging-go-brrrr) utilities for validation constants.
+Uses bids_hub (neuroimaging-go-brrrr) for validation constants.
+Implements paper-specific filtering and parity-critical behaviors.
 """
 
 from __future__ import annotations
@@ -86,7 +115,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-# Import validation constants from bids_hub
+# Import validation constants from bids_hub (full dataset counts)
 from bids_hub.validation.arc import ARC_VALIDATION_CONFIG
 
 if TYPE_CHECKING:
@@ -138,6 +167,7 @@ def load_arc_from_huggingface(
     include_space_no_accel: bool = True,
     exclude_turbo_spin_echo: bool = True,
     require_lesion_mask: bool = True,
+    strict_t2w: bool = True,  # PARITY-CRITICAL: No FLAIR fallback
     verify_counts: bool = True,
 ) -> ARCDatasetInfo:
     """Load ARC dataset from HuggingFace Hub.
@@ -154,7 +184,8 @@ def load_arc_from_huggingface(
         include_space_no_accel: Include SPACE without acceleration.
         exclude_turbo_spin_echo: Exclude turbo-spin echo sequences.
         require_lesion_mask: Only include samples with lesion masks.
-        verify_counts: Verify counts match paper expectations.
+        strict_t2w: If True, ONLY use T2w (no FLAIR fallback). Default True for paper parity.
+        verify_counts: Verify counts match paper expectations (224 = 115 + 109).
 
     Returns:
         ARCDatasetInfo with filtered samples.
@@ -174,13 +205,14 @@ def load_arc_from_huggingface(
         ARC_VALIDATION_CONFIG.expected_counts["sessions"],
     )
 
-    # Extract and filter samples
+    # Extract and filter samples (with parity-critical behaviors)
     samples = _extract_samples(
         dataset,
         include_space_2x=include_space_2x,
         include_space_no_accel=include_space_no_accel,
         exclude_turbo_spin_echo=exclude_turbo_spin_echo,
         require_lesion_mask=require_lesion_mask,
+        strict_t2w=strict_t2w,
     )
 
     if verify_counts:

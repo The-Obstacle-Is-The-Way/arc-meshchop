@@ -237,15 +237,16 @@ def _verify_sample_counts_against_bids_hub(samples: list[ARCSample]) -> None:
 ### 3.2 Key Imports to Add
 
 ```python
-from bids_hub import (
-    get_arc_features,           # HuggingFace Features schema
-    validate_arc_download,      # Validation for local BIDS
-)
-from bids_hub.validation.arc import (
-    ARC_VALIDATION_CONFIG,      # Expected counts from paper
-    EXPECTED_COUNTS,            # Legacy alias
-)
+# For CONSUMPTION (training), only import validation constants:
+from bids_hub.validation.arc import ARC_VALIDATION_CONFIG
+
+# Optional: For validating local BIDS directories
+from bids_hub import validate_arc_download
 ```
+
+**NOT imported** (for UPLOAD, not consumption):
+- `get_arc_features` - Schema definition for building HF datasets
+- `build_arc_file_table` - For converting local BIDS to HF format
 
 ### 3.3 What to Keep vs Replace
 

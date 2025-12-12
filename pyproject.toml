@@ -232,6 +232,9 @@ module = [
     "datasets.*",
     "huggingface_hub",
     "huggingface_hub.*",
+    # bids_hub (neuroimaging-go-brrrr, no stubs)
+    "bids_hub",
+    "bids_hub.*",
     # Export dependencies (Spec 06)
     "onnxruntime",
     "onnxruntime.*",

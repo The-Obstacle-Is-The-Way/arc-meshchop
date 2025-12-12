@@ -11,19 +11,14 @@ import pytest
 class TestLoadARCFromHuggingFace:
     """Tests for load_arc_from_huggingface function."""
 
-    def test_imports_datasets_library(self) -> None:
-        """Verify datasets import error is informative."""
-        with patch.dict("sys.modules", {"datasets": None}):
-            # Need to reimport to trigger the import check
-            import importlib
+    def test_bids_hub_import_available(self) -> None:
+        """Verify bids_hub import works (datasets guaranteed via dependency)."""
+        # bids_hub is a required dependency, so this import must always work
+        from bids_hub.validation.arc import ARC_VALIDATION_CONFIG
 
-            import arc_meshchop.data.huggingface_loader as loader
-
-            importlib.reload(loader)
-
-            # Should raise ImportError with helpful message
-            with pytest.raises(ImportError, match="datasets"):
-                loader.load_arc_from_huggingface()
+        # Verify expected counts are accessible
+        assert ARC_VALIDATION_CONFIG.expected_counts["subjects"] == 230
+        assert ARC_VALIDATION_CONFIG.expected_counts["sessions"] == 902
 
     def test_returns_arc_dataset_info(self) -> None:
         """Verify return type is ARCDatasetInfo."""
