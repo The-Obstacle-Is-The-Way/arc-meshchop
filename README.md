@@ -2,7 +2,7 @@
 
 **MeshNet stroke lesion segmentation on the Aphasia Recovery Cohort (ARC)**
 
-Replicating ["State-of-the-Art Stroke Lesion Segmentation at 1/1000th of Parameters"](https://arxiv.org/abs/2503.05531) (Fedorov et al.) — a tiny 3D CNN that beats transformers.
+Replicating ["State-of-the-Art Stroke Lesion Segmentation at 1/1000th of Parameters"](https://arxiv.org/html/2503.05531v1) (Fedorov et al.) — a tiny 3D CNN that beats transformers.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
