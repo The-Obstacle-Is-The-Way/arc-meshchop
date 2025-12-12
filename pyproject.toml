@@ -44,7 +44,7 @@ dependencies = [
 
     # HuggingFace datasets for ARC data access
     # neuroimaging-go-brrrr v0.2.1 provides BIDS/NIfTI utilities on top of HuggingFace datasets
-    # Import from bids_hub module: from bids_hub.datasets.arc import ...
+    # Import from bids_hub module: from bids_hub.validation.arc import ARC_VALIDATION_CONFIG
     "neuroimaging-go-brrrr @ git+https://github.com/The-Obstacle-Is-The-Way/neuroimaging-go-brrrr.git@v0.2.1",
     "datasets>=3.4.0",
     "huggingface-hub>=0.32.0",
@@ -232,6 +232,9 @@ module = [
     "datasets.*",
     "huggingface_hub",
     "huggingface_hub.*",
+    # bids_hub (neuroimaging-go-brrrr, no stubs)
+    "bids_hub",
+    "bids_hub.*",
     # Export dependencies (Spec 06)
     "onnxruntime",
     "onnxruntime.*",

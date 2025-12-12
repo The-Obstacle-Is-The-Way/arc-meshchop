@@ -1,6 +1,7 @@
 """HuggingFace dataset loader for ARC.
 
 Loads the ARC dataset from HuggingFace Hub and extracts paths for use with ARCDataset.
+Uses bids_hub (neuroimaging-go-brrrr) for validation constants.
 
 FROM PAPER:
 "The Aphasia Recovery Cohort (ARC) is an open-source neuroimaging dataset
@@ -16,6 +17,11 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+# Import validation constants from bids_hub (full dataset counts)
+# NOTE: These are for the FULL ARC dataset (230 subjects, 902 sessions).
+# Paper training subset is 224 samples (verified separately in verify_sample_counts).
+from bids_hub.validation.arc import ARC_VALIDATION_CONFIG
 
 if TYPE_CHECKING:
     from datasets import Dataset
@@ -150,6 +156,14 @@ def load_arc_from_huggingface(
     dataset = ds["train"]
 
     logger.info("Loaded %d sessions from HuggingFace", len(dataset))
+
+    # Log bids_hub expected counts for context (full dataset, not paper subset)
+    logger.info(
+        "bids_hub ARC_VALIDATION_CONFIG: %d subjects, %d sessions, %d t2w",
+        ARC_VALIDATION_CONFIG.expected_counts["subjects"],
+        ARC_VALIDATION_CONFIG.expected_counts["sessions"],
+        ARC_VALIDATION_CONFIG.expected_counts["t2w"],
+    )
 
     # Filter and extract samples
     samples = _extract_samples(
