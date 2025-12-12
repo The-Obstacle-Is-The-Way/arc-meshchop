@@ -15,7 +15,7 @@ import re
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from datasets import Dataset
@@ -135,8 +135,7 @@ def load_arc_from_huggingface(
         from datasets import load_dataset
     except ImportError as e:
         raise ImportError(
-            "HuggingFace datasets library required. "
-            "Install with: pip install datasets"
+            "HuggingFace datasets library required. Install with: pip install datasets"
         ) from e
 
     logger.info("Loading ARC dataset from HuggingFace: %s", repo_id)
@@ -164,8 +163,7 @@ def load_arc_from_huggingface(
 
     if not samples:
         raise ValueError(
-            "No samples match the specified filters. "
-            "Check filter settings and dataset contents."
+            "No samples match the specified filters. Check filter settings and dataset contents."
         )
 
     logger.info(
@@ -182,7 +180,7 @@ def load_arc_from_huggingface(
     # Verify sample counts match paper requirements
     if verify_counts:
         verify_sample_counts(samples)
-        logger.info("Sample count verification passed: 224 samples (115 space_2x + 109 space_no_accel)")
+        logger.info("Sample count verification passed: 224 samples (115+109)")
 
     return ARCDatasetInfo(samples=samples)
 
@@ -245,7 +243,8 @@ def _extract_samples(
             logger.warning(
                 "Unknown acquisition type for sample %d (path: %s). "
                 "Skipping - cannot verify paper compliance.",
-                idx, image_path
+                idx,
+                image_path,
             )
             continue
 
@@ -267,14 +266,16 @@ def _extract_samples(
         if lesion is not None:
             lesion_volume = _compute_lesion_volume_from_nifti(lesion)
 
-        samples.append(ARCSample(
-            subject_id=row.get("subject_id", f"sub-{idx:04d}"),
-            session_id=row.get("session_id", "ses-1"),
-            image_path=Path(image_path),
-            mask_path=Path(mask_path) if mask_path else Path(""),
-            lesion_volume=lesion_volume,
-            acquisition_type=acq_type,
-        ))
+        samples.append(
+            ARCSample(
+                subject_id=row.get("subject_id", f"sub-{idx:04d}"),
+                session_id=row.get("session_id", "ses-1"),
+                image_path=Path(image_path),
+                mask_path=Path(mask_path) if mask_path else Path(),
+                lesion_volume=lesion_volume,
+                acquisition_type=acq_type,
+            )
+        )
 
     return samples
 
@@ -305,15 +306,15 @@ def _determine_acquisition_type(row: dict, file_path: str | None) -> str:
         file_path_lower = str(file_path).lower()
 
         # Look for acq-* entity in filename
-        acq_match = re.search(r'acq-([a-z0-9]+)', file_path_lower)
+        acq_match = re.search(r"acq-([a-z0-9]+)", file_path_lower)
         if acq_match:
             acq_value = acq_match.group(1)
 
-            if 'tse' in acq_value or 'turbo' in acq_value:
+            if "tse" in acq_value or "turbo" in acq_value:
                 return "turbo_spin_echo"
-            elif 'space2x' in acq_value or '2x' in acq_value:
+            elif "space2x" in acq_value or "2x" in acq_value:
                 return "space_2x"
-            elif 'space' in acq_value:
+            elif "space" in acq_value:
                 return "space_no_accel"
 
     # Fallback: Check row metadata (less reliable)
@@ -332,7 +333,7 @@ def _determine_acquisition_type(row: dict, file_path: str | None) -> str:
     return "unknown"
 
 
-def _get_nifti_path(nifti_obj, cache_dir: Path | None = None) -> str | None:
+def _get_nifti_path(nifti_obj: object, cache_dir: Path | None = None) -> str | None:
     """Extract file path from HuggingFace Nifti object.
 
     HuggingFace Nifti() feature type can provide:
@@ -357,14 +358,14 @@ def _get_nifti_path(nifti_obj, cache_dir: Path | None = None) -> str | None:
     # If it's a dict with path or bytes
     if isinstance(nifti_obj, dict):
         # Prefer path over bytes
-        if "path" in nifti_obj and nifti_obj["path"]:
+        if nifti_obj.get("path"):
             return nifti_obj["path"]
 
         # Handle bytes - write to cache file
-        if "bytes" in nifti_obj and nifti_obj["bytes"]:
+        if nifti_obj.get("bytes"):
             data = nifti_obj["bytes"]
             # Create deterministic filename from content hash
-            content_hash = hashlib.md5(data).hexdigest()[:12]  # noqa: S324
+            content_hash = hashlib.md5(data).hexdigest()[:12]
             if cache_dir:
                 cache_dir.mkdir(parents=True, exist_ok=True)
                 cache_path = cache_dir / f"nifti_{content_hash}.nii.gz"
@@ -412,7 +413,11 @@ def verify_sample_counts(samples: list[ARCSample]) -> None:
 
     logger.info(
         "Sample counts: space_2x=%d, space_no_accel=%d, tse=%d, unknown=%d, total=%d",
-        space_2x_count, space_no_accel_count, tse_count, unknown_count, total
+        space_2x_count,
+        space_no_accel_count,
+        tse_count,
+        unknown_count,
+        total,
     )
 
     # Verify against paper
@@ -429,23 +434,17 @@ def verify_sample_counts(samples: list[ARCSample]) -> None:
 
     if space_no_accel_count != expected_space_no_accel:
         warnings.append(
-            f"SPACE no-accel count mismatch: got {space_no_accel_count}, expected {expected_space_no_accel}"
+            f"SPACE no-accel: got {space_no_accel_count}, expected {expected_space_no_accel}"
         )
 
     if total != expected_total:
-        warnings.append(
-            f"Total count mismatch: got {total}, expected {expected_total}"
-        )
+        warnings.append(f"Total count mismatch: got {total}, expected {expected_total}")
 
     if tse_count > 0:
-        warnings.append(
-            f"TSE samples should be excluded: found {tse_count}"
-        )
+        warnings.append(f"TSE samples should be excluded: found {tse_count}")
 
     if unknown_count > 0:
-        warnings.append(
-            f"Unknown acquisition types found: {unknown_count} samples"
-        )
+        warnings.append(f"Unknown acquisition types found: {unknown_count} samples")
 
     if warnings:
         for w in warnings:
@@ -457,7 +456,7 @@ def verify_sample_counts(samples: list[ARCSample]) -> None:
         )
 
 
-def _compute_lesion_volume_from_nifti(nifti_obj) -> int:
+def _compute_lesion_volume_from_nifti(nifti_obj: object) -> int:
     """Compute lesion volume from NIfTI object.
 
     Args:
@@ -494,7 +493,7 @@ def _compute_lesion_volume_from_nifti(nifti_obj) -> int:
 def download_arc_to_local(
     output_dir: Path | str,
     repo_id: str = "hugging-science/arc-aphasia-bids",
-    **filter_kwargs,
+    **filter_kwargs: Any,
 ) -> ARCDatasetInfo:
     """Download ARC dataset and save NIfTI files locally.
 
@@ -536,14 +535,16 @@ def download_arc_to_local(
         if sample.mask_path.exists():
             shutil.copy2(sample.mask_path, local_mask)
 
-        local_samples.append(ARCSample(
-            subject_id=sample.subject_id,
-            session_id=sample.session_id,
-            image_path=local_image,
-            mask_path=local_mask,
-            lesion_volume=sample.lesion_volume,
-            acquisition_type=sample.acquisition_type,
-        ))
+        local_samples.append(
+            ARCSample(
+                subject_id=sample.subject_id,
+                session_id=sample.session_id,
+                image_path=local_image,
+                mask_path=local_mask,
+                lesion_volume=sample.lesion_volume,
+                acquisition_type=sample.acquisition_type,
+            )
+        )
 
         if (i + 1) % 50 == 0:
             logger.info("Downloaded %d/%d samples", i + 1, len(info))

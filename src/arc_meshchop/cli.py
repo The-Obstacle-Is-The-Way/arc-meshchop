@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated, Literal, cast
 
 import typer
 from rich.console import Console
@@ -223,7 +223,7 @@ def train(
         typer.Option("--workers", help="DataLoader workers"),
     ] = 4,
     resume: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option("--resume", help="Resume from checkpoint"),
     ] = None,
 ) -> None:
@@ -263,7 +263,7 @@ def train(
         console.print("Run 'arc-meshchop download' first.", err=True)
         raise typer.Exit(1)
 
-    with open(info_path) as f:
+    with info_path.open() as f:
         dataset_info = json.load(f)
 
     image_paths = [Path(p) for p in dataset_info["image_paths"]]
@@ -290,7 +290,8 @@ def train(
     train_indices = split.train_indices
     val_indices = split.val_indices
 
-    console.print(f"Fold {outer_fold}.{inner_fold}: {len(train_indices)} train, {len(val_indices)} val")
+    n_train, n_val = len(train_indices), len(val_indices)
+    console.print(f"Fold {outer_fold}.{inner_fold}: {n_train} train, {n_val} val")
 
     # Create datasets
     train_dataset = ARCDataset(
@@ -382,7 +383,7 @@ def evaluate(
         typer.Option("--outer-fold", help="Outer CV fold for test set"),
     ] = 0,
     output: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option("--output", "-o", help="Output JSON file for results"),
     ] = None,
     channels: Annotated[
@@ -413,7 +414,7 @@ def evaluate(
         console.print(f"[red]Dataset info not found: {info_path}[/red]", err=True)
         raise typer.Exit(1)
 
-    with open(info_path) as f:
+    with info_path.open() as f:
         dataset_info = json.load(f)
 
     image_paths = [Path(p) for p in dataset_info["image_paths"]]
@@ -465,8 +466,8 @@ def evaluate(
             image, mask = test_dataset[idx]
             image = image.unsqueeze(0).to(device)
 
-            output = model(image)
-            pred = output.argmax(dim=1).squeeze(0).cpu()
+            model_output = model(image)
+            pred = model_output.argmax(dim=1).squeeze(0).cpu()
 
             all_preds.append(pred)
             all_targets.append(mask)
@@ -564,10 +565,12 @@ def experiment(
     from arc_meshchop.experiment.config import ExperimentConfig
     from arc_meshchop.experiment.runner import run_experiment
 
+    # Cast variant to Literal type for ExperimentConfig
+    model_variant = cast(Literal["meshnet_5", "meshnet_16", "meshnet_26"], variant)
     config = ExperimentConfig(
         data_dir=data_dir,
         output_dir=output_dir,
-        model_variant=variant,
+        model_variant=model_variant,
         num_restarts=num_restarts,
         epochs=epochs,
         learning_rate=learning_rate,
@@ -580,7 +583,7 @@ def experiment(
 
     console.print(f"Running experiment: {variant}")
     console.print(f"Total runs: {config.total_runs}")
-    console.print(f"Hyperparameters: lr={learning_rate}, wd={weight_decay}, bg_weight={background_weight}")
+    console.print(f"Hyperparams: lr={learning_rate}, wd={weight_decay}, bg={background_weight}")
     console.print(f"Output: {output_dir}")
 
     result = run_experiment(config)
@@ -675,7 +678,7 @@ def hpo(
     console.print(f"Best params: {params_path}")
     console.print()
     console.print("To run full experiment with these params:")
-    console.print(f"  uv run arc-meshchop experiment \\")
+    console.print("  uv run arc-meshchop experiment \\")
     console.print(f"    --lr {best_params['learning_rate']:.6f} \\")
     console.print(f"    --wd {best_params['weight_decay']:.6f} \\")
     console.print(f"    --bg-weight {best_params['bg_weight']:.4f} \\")
@@ -693,7 +696,7 @@ def validate(
         typer.Option("--variant", "-v", help="Model variant"),
     ] = "meshnet_26",
     output: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option("--output", "-o", help="Output path for report"),
     ] = None,
 ) -> None:
@@ -723,12 +726,18 @@ def validate(
     console.print()
 
     console.print("[bold]Detailed Comparison:[/bold]")
-    console.print(f"  DICE: {result.dice_mean:.4f} vs {result.details['dice']['paper']:.4f} "
-                  f"({result.details['dice']['pct_diff']:+.1f}%)")
-    console.print(f"  AVD:  {result.avd_mean:.4f} vs {result.details['avd']['paper']:.4f} "
-                  f"({result.details['avd']['pct_diff']:+.1f}%)")
-    console.print(f"  MCC:  {result.mcc_mean:.4f} vs {result.details['mcc']['paper']:.4f} "
-                  f"({result.details['mcc']['pct_diff']:+.1f}%)")
+    console.print(
+        f"  DICE: {result.dice_mean:.4f} vs {result.details['dice']['paper']:.4f} "
+        f"({result.details['dice']['pct_diff']:+.1f}%)"
+    )
+    console.print(
+        f"  AVD:  {result.avd_mean:.4f} vs {result.details['avd']['paper']:.4f} "
+        f"({result.details['avd']['pct_diff']:+.1f}%)"
+    )
+    console.print(
+        f"  MCC:  {result.mcc_mean:.4f} vs {result.details['mcc']['paper']:.4f} "
+        f"({result.details['mcc']['pct_diff']:+.1f}%)"
+    )
 
     console.print()
     console.print(f"[bold]Parity Level:[/bold] {result.parity_level.upper()}")
@@ -743,7 +752,7 @@ def validate(
         console.print("[red]Failed: Results do not match paper.[/red]")
 
     if output:
-        with open(results_file) as f:
+        with results_file.open() as f:
             results_data = json.load(f)
         generate_benchmark_table([results_data], output)
         console.print(f"\nBenchmark table saved to {output}")

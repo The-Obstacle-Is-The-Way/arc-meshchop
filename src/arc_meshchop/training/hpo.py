@@ -125,9 +125,7 @@ def create_study(
     try:
         import optuna
     except ImportError as e:
-        raise ImportError(
-            "Optuna is required for HPO. Install with: pip install optuna"
-        ) from e
+        raise ImportError("Optuna is required for HPO. Install with: pip install optuna") from e
 
     # Set up pruner (ASHA-style early stopping)
     if pruning:
@@ -208,7 +206,7 @@ def run_hpo_trial(
     # Load dataset
     data_dir = Path(data_dir)
     info_path = data_dir / "dataset_info.json"
-    with open(info_path) as f:
+    with info_path.open() as f:
         dataset_info = json.load(f)
 
     image_paths = [Path(p) for p in dataset_info["image_paths"]]

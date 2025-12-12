@@ -269,7 +269,7 @@ class ExperimentRunner:
         results_file = run_dir / "results.json"
         if self.config.skip_completed and results_file.exists():
             logger.info("Skipping completed run: %s", run_id)
-            with open(results_file) as f:
+            with results_file.open() as f:
                 data = json.load(f)
             return RunResult(**data)
 
@@ -352,9 +352,9 @@ class ExperimentRunner:
             inner_fold=inner_fold,
             restart=restart,
             seed=seed,
-            best_dice=results["best_dice"],
-            best_epoch=results["best_epoch"],
-            final_train_loss=results["final_train_loss"],
+            best_dice=float(results["best_dice"]),
+            best_epoch=int(results["best_epoch"]),
+            final_train_loss=float(results["final_train_loss"]),
             checkpoint_path=str(run_dir / "best.pt"),
             duration_seconds=duration,
         )
@@ -376,14 +376,15 @@ class ExperimentRunner:
         for outer in range(self.config.num_outer_folds):
             for inner in range(self.config.num_inner_folds):
                 fold_runs = [
-                    r for r in self.results
-                    if r.outer_fold == outer and r.inner_fold == inner
+                    r for r in self.results if r.outer_fold == outer and r.inner_fold == inner
                 ]
-                folds.append(FoldResult(
-                    outer_fold=outer,
-                    inner_fold=inner,
-                    runs=fold_runs,
-                ))
+                folds.append(
+                    FoldResult(
+                        outer_fold=outer,
+                        inner_fold=inner,
+                        runs=fold_runs,
+                    )
+                )
 
         return folds
 
@@ -447,7 +448,9 @@ class ExperimentRunner:
             # Load model
             model = MeshNet(channels=self.config.channels)
             model = model.to(device)
-            checkpoint = torch.load(best_run.checkpoint_path, map_location=device, weights_only=False)
+            checkpoint = torch.load(
+                best_run.checkpoint_path, map_location=device, weights_only=False
+            )
             model.load_state_dict(checkpoint["model_state_dict"])
             model.eval()
 
@@ -481,16 +484,18 @@ class ExperimentRunner:
 
             metrics = metrics_calculator.compute_batch(preds, targets)
 
-            test_results.append({
-                "outer_fold": outer_fold,
-                "best_inner_fold": best_run.inner_fold,
-                "best_restart": best_run.restart,
-                "best_val_dice": best_run.best_dice,
-                "test_dice": metrics["dice"],
-                "test_avd": metrics["avd"],
-                "test_mcc": metrics["mcc"],
-                "num_test_samples": len(test_indices),
-            })
+            test_results.append(
+                {
+                    "outer_fold": outer_fold,
+                    "best_inner_fold": best_run.inner_fold,
+                    "best_restart": best_run.restart,
+                    "best_val_dice": best_run.best_dice,
+                    "test_dice": metrics["dice"],
+                    "test_avd": metrics["avd"],
+                    "test_mcc": metrics["mcc"],
+                    "num_test_samples": len(test_indices),
+                }
+            )
 
             logger.info(
                 "Outer fold %d test: DICE=%.4f, AVD=%.4f, MCC=%.4f",
@@ -507,10 +512,9 @@ class ExperimentRunner:
         info_path = self.config.data_dir / "dataset_info.json"
         if not info_path.exists():
             raise FileNotFoundError(
-                f"Dataset info not found: {info_path}. "
-                "Run 'arc-meshchop download' first."
+                f"Dataset info not found: {info_path}. Run 'arc-meshchop download' first."
             )
-        with open(info_path) as f:
+        with info_path.open() as f:
             return json.load(f)
 
     def _save_results(self, result: ExperimentResult) -> None:

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 
 class TestValidateParity:
     """Tests for validate_parity function."""
@@ -88,12 +86,14 @@ class TestBenchmarkTable:
         """Verify markdown table generation."""
         from arc_meshchop.validation.parity import generate_benchmark_table
 
-        results = [{
-            "summary": {"mean_dice": 0.87, "std_dice": 0.02},
-            "test_results": [
-                {"test_dice": 0.87, "test_avd": 0.25, "test_mcc": 0.76},
-            ],
-        }]
+        results = [
+            {
+                "summary": {"mean_dice": 0.87, "std_dice": 0.02},
+                "test_results": [
+                    {"test_dice": 0.87, "test_avd": 0.25, "test_mcc": 0.76},
+                ],
+            }
+        ]
 
         table = generate_benchmark_table(results)
 

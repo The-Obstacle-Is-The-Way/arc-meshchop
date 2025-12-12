@@ -16,7 +16,9 @@ class TestLoadARCFromHuggingFace:
         with patch.dict("sys.modules", {"datasets": None}):
             # Need to reimport to trigger the import check
             import importlib
+
             import arc_meshchop.data.huggingface_loader as loader
+
             importlib.reload(loader)
 
             # Should raise ImportError with helpful message
@@ -27,8 +29,12 @@ class TestLoadARCFromHuggingFace:
         """Verify return type is ARCDatasetInfo."""
         # Mock the HuggingFace dataset
         mock_dataset = _create_mock_dataset(n_samples=10)
+        mock_return = {"train": mock_dataset}
 
-        with patch("arc_meshchop.data.huggingface_loader.load_dataset", return_value={"train": mock_dataset}):
+        with patch(
+            "arc_meshchop.data.huggingface_loader.load_dataset",
+            return_value=mock_return,
+        ):
             from arc_meshchop.data.huggingface_loader import load_arc_from_huggingface
 
             info = load_arc_from_huggingface(verify_counts=False)
@@ -43,8 +49,12 @@ class TestLoadARCFromHuggingFace:
             n_samples=10,
             acquisition_types=["space_2x"] * 5 + ["turbo_spin_echo"] * 5,
         )
+        mock_return = {"train": mock_dataset}
 
-        with patch("arc_meshchop.data.huggingface_loader.load_dataset", return_value={"train": mock_dataset}):
+        with patch(
+            "arc_meshchop.data.huggingface_loader.load_dataset",
+            return_value=mock_return,
+        ):
             from arc_meshchop.data.huggingface_loader import load_arc_from_huggingface
 
             info = load_arc_from_huggingface(
@@ -61,8 +71,12 @@ class TestLoadARCFromHuggingFace:
             n_samples=10,
             has_mask=[True] * 5 + [False] * 5,
         )
+        mock_return = {"train": mock_dataset}
 
-        with patch("arc_meshchop.data.huggingface_loader.load_dataset", return_value={"train": mock_dataset}):
+        with patch(
+            "arc_meshchop.data.huggingface_loader.load_dataset",
+            return_value=mock_return,
+        ):
             from arc_meshchop.data.huggingface_loader import load_arc_from_huggingface
 
             info = load_arc_from_huggingface(
@@ -108,30 +122,21 @@ class TestDetermineAcquisitionType:
         """Verify SPACE 2x detection from BIDS filename."""
         from arc_meshchop.data.huggingface_loader import _determine_acquisition_type
 
-        acq_type = _determine_acquisition_type(
-            {},
-            "/cache/sub-001_ses-1_acq-space2x_T2w.nii.gz"
-        )
+        acq_type = _determine_acquisition_type({}, "/cache/sub-001_ses-1_acq-space2x_T2w.nii.gz")
         assert acq_type == "space_2x"
 
     def test_detects_space_no_accel_from_filename(self) -> None:
         """Verify SPACE no accel detection from BIDS filename."""
         from arc_meshchop.data.huggingface_loader import _determine_acquisition_type
 
-        acq_type = _determine_acquisition_type(
-            {},
-            "/cache/sub-001_ses-1_acq-space_T2w.nii.gz"
-        )
+        acq_type = _determine_acquisition_type({}, "/cache/sub-001_ses-1_acq-space_T2w.nii.gz")
         assert acq_type == "space_no_accel"
 
     def test_detects_tse_from_filename(self) -> None:
         """Verify TSE detection from BIDS filename."""
         from arc_meshchop.data.huggingface_loader import _determine_acquisition_type
 
-        acq_type = _determine_acquisition_type(
-            {},
-            "/cache/sub-001_ses-1_acq-tse_T2w.nii.gz"
-        )
+        acq_type = _determine_acquisition_type({}, "/cache/sub-001_ses-1_acq-tse_T2w.nii.gz")
         assert acq_type == "turbo_spin_echo"
 
     def test_fallback_to_metadata(self) -> None:
@@ -139,8 +144,7 @@ class TestDetermineAcquisitionType:
         from arc_meshchop.data.huggingface_loader import _determine_acquisition_type
 
         acq_type = _determine_acquisition_type(
-            {"acquisition": "SPACE2x"},
-            "/cache/sub-001_ses-1_T2w.nii.gz"
+            {"acquisition": "SPACE2x"}, "/cache/sub-001_ses-1_T2w.nii.gz"
         )
         assert acq_type == "space_2x"
 
@@ -148,10 +152,7 @@ class TestDetermineAcquisitionType:
         """Verify unknown returned when acquisition cannot be determined."""
         from arc_meshchop.data.huggingface_loader import _determine_acquisition_type
 
-        acq_type = _determine_acquisition_type(
-            {},
-            "/cache/sub-001_ses-1_T2w.nii.gz"
-        )
+        acq_type = _determine_acquisition_type({}, "/cache/sub-001_ses-1_T2w.nii.gz")
         assert acq_type == "unknown"
 
 
@@ -162,10 +163,13 @@ class TestVerifySampleCounts:
         """Verify no error with correct sample counts."""
         from arc_meshchop.data.huggingface_loader import ARCSample, verify_sample_counts
 
-        samples = (
-            [ARCSample("sub", "ses", Path("i"), Path("m"), 100, "space_2x") for _ in range(115)] +
-            [ARCSample("sub", "ses", Path("i"), Path("m"), 100, "space_no_accel") for _ in range(109)]
-        )
+        space_2x = [
+            ARCSample("sub", "ses", Path("i"), Path("m"), 100, "space_2x") for _ in range(115)
+        ]
+        space_no = [
+            ARCSample("sub", "ses", Path("i"), Path("m"), 100, "space_no_accel") for _ in range(109)
+        ]
+        samples = space_2x + space_no
 
         # Should not raise
         verify_sample_counts(samples)
@@ -175,8 +179,7 @@ class TestVerifySampleCounts:
         from arc_meshchop.data.huggingface_loader import ARCSample, verify_sample_counts
 
         samples = [
-            ARCSample("sub", "ses", Path("i"), Path("m"), 100, "space_2x")
-            for _ in range(100)
+            ARCSample("sub", "ses", Path("i"), Path("m"), 100, "space_2x") for _ in range(100)
         ]
 
         with pytest.raises(ValueError, match="Sample count verification failed"):
@@ -197,9 +200,14 @@ def _create_mock_dataset(
     mock = MagicMock()
     mock.__len__ = MagicMock(return_value=n_samples)
 
-    def getitem(idx):
+    def getitem(idx: int) -> dict:
         acq = acquisition_types[idx] if idx < len(acquisition_types) else "space_2x"
-        acq_str = "space2x" if acq == "space_2x" else ("tse" if acq == "turbo_spin_echo" else "space")
+        if acq == "space_2x":
+            acq_str = "space2x"
+        elif acq == "turbo_spin_echo":
+            acq_str = "tse"
+        else:
+            acq_str = "space"
         return {
             "subject_id": f"sub-{idx:04d}",
             "session_id": "ses-1",

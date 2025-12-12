@@ -15,7 +15,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeAlias
 
 import numpy as np
 import torch
@@ -190,7 +190,7 @@ class ARCDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         return int(np.sum(mask > 0.5))
 
 
-DataLoaderType = torch.utils.data.DataLoader[tuple[torch.Tensor, torch.Tensor]]
+DataLoaderType: TypeAlias = torch.utils.data.DataLoader[tuple[torch.Tensor, torch.Tensor]]
 
 
 def create_dataloaders(

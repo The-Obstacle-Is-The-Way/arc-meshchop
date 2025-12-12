@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
 import pytest
 
 
@@ -111,8 +107,9 @@ class TestFoldResult:
 
     def test_std_dice(self) -> None:
         """Verify std DICE calculation."""
-        from arc_meshchop.experiment.runner import FoldResult, RunResult
         import numpy as np
+
+        from arc_meshchop.experiment.runner import FoldResult, RunResult
 
         runs = [
             RunResult(
@@ -140,7 +137,7 @@ class TestExperimentResult:
 
     def test_test_mean_dice(self) -> None:
         """Verify test mean DICE from outer folds."""
-        from arc_meshchop.experiment.runner import ExperimentResult, FoldResult
+        from arc_meshchop.experiment.runner import ExperimentResult
 
         result = ExperimentResult(
             config={},
@@ -181,6 +178,7 @@ class TestRunResult:
     def test_serialization(self) -> None:
         """Verify RunResult can be serialized to dict."""
         from dataclasses import asdict
+
         from arc_meshchop.experiment.runner import RunResult
 
         run = RunResult(

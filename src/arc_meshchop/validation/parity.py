@@ -107,7 +107,7 @@ def validate_parity(
     """
     # Load results
     if isinstance(experiment_results, (str, Path)):
-        with open(experiment_results) as f:
+        with Path(experiment_results).open() as f:
             results = json.load(f)
     else:
         results = experiment_results
@@ -187,7 +187,10 @@ def _compute_parity_details(
     """Compute detailed parity metrics.
 
     Args:
-        achieved_*: Achieved metrics.
+        achieved_dice: Achieved DICE score.
+        achieved_std: Achieved DICE standard deviation.
+        achieved_avd: Achieved AVD score.
+        achieved_mcc: Achieved MCC score.
         paper: Paper reference values.
 
     Returns:
@@ -276,8 +279,8 @@ def generate_benchmark_table(
         Markdown-formatted table.
     """
     lines = [
-        "| Model | Parameters | DICE (higher better) | AVD (lower better) | MCC (higher better) | Parity |",
-        "|-------|------------|----------------------|--------------------|---------------------|--------|",
+        "| Model | Params | DICE | AVD | MCC | Parity |",
+        "|-------|--------|------|-----|-----|--------|",
     ]
 
     # Add paper reference row
@@ -376,7 +379,8 @@ def run_statistical_comparison(
         "cohens_d": float(cohens_d),
         "interpretation": _interpret_cohens_d(cohens_d),
         "conclusion": (
-            "STATISTICALLY EQUIVALENT" if p_value >= alpha
+            "STATISTICALLY EQUIVALENT"
+            if p_value >= alpha
             else f"STATISTICALLY DIFFERENT (p={p_value:.4f})"
         ),
     }
