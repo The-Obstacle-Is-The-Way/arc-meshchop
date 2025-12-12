@@ -37,6 +37,7 @@ class TrainingConfig:
     scheduler: Literal["onecycle"] = "onecycle"
     max_lr: float = 0.001
     pct_start: float = 0.01  # 1% warmup
+    div_factor: float = 100.0  # FROM PAPER: "starts at 1/100th of the max learning rate"
 
     # Loss (FROM PAPER)
     background_weight: float = 0.5

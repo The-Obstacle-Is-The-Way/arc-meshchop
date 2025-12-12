@@ -1,6 +1,12 @@
 """Training infrastructure for MeshNet stroke lesion segmentation."""
 
 from arc_meshchop.training.config import HPOConfig, TrainingConfig
+from arc_meshchop.training.hpo import (
+    create_study,
+    run_hpo,
+    run_hpo_trial,
+    trial_params_to_training_config,
+)
 from arc_meshchop.training.loss import (
     WeightedCrossEntropyLoss,
     create_loss_function,
@@ -17,4 +23,8 @@ __all__ = [
     "create_loss_function",
     "create_optimizer",
     "create_scheduler",
+    "create_study",
+    "run_hpo",
+    "run_hpo_trial",
+    "trial_params_to_training_config",
 ]

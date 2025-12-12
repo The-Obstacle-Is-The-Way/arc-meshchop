@@ -16,6 +16,14 @@ from arc_meshchop.data.dataset import (
     ARCDataset,
     create_dataloaders,
 )
+from arc_meshchop.data.huggingface_loader import (
+    ARCDatasetInfo,
+    ARCSample,
+    download_arc_to_local,
+    load_arc_from_huggingface,
+    load_arc_samples,
+    verify_sample_counts,
+)
 from arc_meshchop.data.preprocessing import (
     compute_lesion_volume,
     crop_or_pad,
@@ -39,6 +47,8 @@ from arc_meshchop.data.splits import (
 __all__ = [
     "LESION_QUINTILES",
     "ARCDataset",
+    "ARCDatasetInfo",
+    "ARCSample",
     "AcquisitionType",
     "CVSplit",
     "DataConfig",
@@ -49,12 +59,16 @@ __all__ = [
     "create_dataloaders",
     "create_stratification_labels",
     "crop_or_pad",
+    "download_arc_to_local",
     "generate_nested_cv_splits",
     "get_lesion_quintile",
     "get_spacing",
+    "load_arc_from_huggingface",
+    "load_arc_samples",
     "load_nifti",
     "normalize_intensity",
     "preprocess_volume",
     "resample_volume",
     "save_nifti",
+    "verify_sample_counts",
 ]
