@@ -5,6 +5,36 @@
 
 ---
 
+## What is neuroimaging-go-brrrr?
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│              neuroimaging-go-brrrr IS AN EXTENSION OF HUGGINGFACE               │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│   pip install datasets              pip install neuroimaging-go-brrrr           │
+│   ───────────────────────           ─────────────────────────────────           │
+│   Standard HuggingFace              EXTENDS datasets with:                      │
+│   • Images, text, audio             • NIfTI file support (.nii.gz)              │
+│   • Parquet/Arrow storage           • BIDS directory structure                  │
+│   • Hub integration                 • Neuroimaging validation                   │
+│                                     • Upload utilities for BIDS→Hub             │
+│                                                                                 │
+│   neuroimaging-go-brrrr automatically installs datasets as a dependency.        │
+│   It's NOT a replacement — it's a domain-specific extension.                    │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Key insight:** When you `pip install neuroimaging-go-brrrr`, you get:
+- `datasets` (the standard HuggingFace library)
+- `huggingface-hub` (for Hub interactions)
+- `bids_hub` module (neuroimaging-specific extensions)
+
+This is the canonical pattern for domain-specific HuggingFace extensions.
+
+---
+
 ## Why This Document Exists
 
 ```
