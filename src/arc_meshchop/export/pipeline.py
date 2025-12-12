@@ -166,8 +166,7 @@ def load_exported_model(
 
     elif format == "tfjs":
         raise NotImplementedError(
-            "TFJS models must be loaded in JavaScript. "
-            "Use tf.loadGraphModel() in browser."
+            "TFJS models must be loaded in JavaScript. Use tf.loadGraphModel() in browser."
         )
 
     else:
