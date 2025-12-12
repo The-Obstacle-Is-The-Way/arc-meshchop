@@ -101,6 +101,7 @@ export = [
     # doesn't have ARM Mac wheels. Install manually on Linux for TFJS export.
     "onnx>=1.14.0",
     "onnxruntime>=1.16.0",
+    "onnxscript>=0.1.0",  # Required by torch>=2.9 for ONNX export
 ]
 
 huggingface = [
@@ -221,8 +222,25 @@ module = [
     "tensorboard.*",
     "sklearn.*",
     "scipy.*",
+    # Export dependencies (Spec 06)
+    "onnxruntime",
+    "onnxruntime.*",
+    "onnxsim",
+    "onnxsim.*",
+    "onnxconverter_common",
+    "onnxconverter_common.*",
+    "onnx_tf",
+    "onnx_tf.*",
 ]
 ignore_missing_imports = true
+
+# Ignore type checking errors for modules that import untyped export dependencies
+[[tool.mypy.overrides]]
+module = [
+    "tests.test_export.*",
+    "arc_meshchop.export.*",
+]
+disable_error_code = ["import-untyped", "import-not-found"]
 
 # =============================================================================
 # COVERAGE - Test Coverage
