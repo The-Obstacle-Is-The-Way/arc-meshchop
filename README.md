@@ -9,12 +9,12 @@ Replicating ["State-of-the-Art Stroke Lesion Segmentation at 1/1000th of Paramet
 │                         WHY THIS EXISTS                                 │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│   MeshNet-26 (147K params)  vs  Swin-UNETR (18M params)                │
+│   MeshNet-26 (147K params)  vs  Swin-UNETR (18M params)                 │
 │                                                                         │
-│   DICE: 0.876                    DICE: 0.859                           │
-│   Size: 0.6 MB                   Size: 70+ MB                          │
+│   DICE: 0.876                    DICE: 0.859                            │
+│   Size: 0.6 MB                   Size: 70+ MB                           │
 │                                                                         │
-│   Runs in browser (brainchop.org)   Needs GPU server                   │
+│   Runs in browser (brainchop.org)   Needs GPU server                    │
 │                                                                         │
 │   The tiny model WINS.                                                  │
 │                                                                         │
