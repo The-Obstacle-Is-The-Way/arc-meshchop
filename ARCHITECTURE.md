@@ -80,15 +80,15 @@
 │  │  MeshNet Training (trainer.py)                                      │  │
 │  │  • MeshNet-26 (147,474 params)                                      │  │
 │  │  • AdamW + OneCycleLR + WeightedCrossEntropy                        │  │
-│  │  • 3 random restarts per fold (paper methodology)                   │  │
+│  │  • 10 random restarts per fold (paper methodology)                  │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
 │                                    │                                      │
 │                                    ▼                                      │
 │  ┌─────────────────────────────────────────────────────────────────────┐  │
 │  │  Evaluation (metrics.py, evaluator.py)                              │  │
-│  │  • DICE coefficient (target: 0.876 ± 0.108)                         │  │
-│  │  • Average Volume Difference (target: 38.4% ± 35.9%)                │  │
-│  │  • Matthews Correlation Coefficient (target: 0.843 ± 0.126)         │  │
+│  │  • DICE coefficient (target: 0.876 ± 0.016)                         │  │
+│  │  • Average Volume Difference (target: 0.245 ± 0.036)                │  │
+│  │  • Matthews Correlation Coefficient (target: 0.760 ± 0.030)         │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
@@ -97,31 +97,27 @@
 
 ## Cache Location
 
-When you run `datasets.load_dataset()`, data is cached locally:
+When you run `arc-meshchop download`, data is cached in the **project-local** directory:
 
 ```text
-~/.cache/huggingface/
-├── hub/
-│   └── datasets--hugging-science--arc-aphasia-bids/
-│       ├── blobs/              # Raw NIfTI files
-│       └── snapshots/          # Dataset versions
-└── datasets/
-    └── hugging-science___arc-aphasia-bids/
-        └── default/0.0.0/      # Processed Arrow files
+data/arc/
+├── dataset_info.json           # Paths, volumes, acquisition types
+└── cache/                      # HuggingFace cache (project-local)
+    └── hugging-science--arc-aphasia-bids/
+        ├── blobs/              # Raw NIfTI files
+        └── snapshots/          # Dataset versions
 ```
 
-### Customizing Cache Location
+This project-local cache (instead of global `~/.cache/huggingface/`) ensures:
+- Reproducibility: All data is self-contained in the project
+- Easy cleanup: Delete `data/arc/` to remove everything
+- Explicit storage: You know exactly where ~25GB is being stored
+
+### Customizing Cache Location (Optional)
+
+You can override with environment variables if needed:
 
 ```bash
-# Change ALL HuggingFace caches (recommended)
-export HF_HOME=/Volumes/ExternalDrive/huggingface
-
-# Change only datasets cache
-export HF_DATASETS_CACHE=/Volumes/ExternalDrive/hf_datasets
-
-# Change only hub downloads
-export HF_HUB_CACHE=/Volumes/ExternalDrive/hf_hub
-
 # Force offline mode (use cached data only)
 export HF_HUB_OFFLINE=1
 ```
@@ -269,7 +265,7 @@ With this architecture:
 ```bash
 # Full training run (paper methodology)
 arc-meshchop download
-arc-meshchop train --channels 26 --epochs 200
+arc-meshchop train --channels 26 --epochs 50
 ```
 
-Target: **DICE 0.876 ± 0.108** with 147K parameters.
+Target: **DICE 0.876 ± 0.016** with 147K parameters.

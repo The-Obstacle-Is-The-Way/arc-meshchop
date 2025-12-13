@@ -20,7 +20,7 @@
 - [ ] FreeSurfer (for `mri_convert` preprocessing)
 - [ ] MONAI (for baseline models)
 - [ ] Hydra (configuration management)
-- [ ] Orion (hyperparameter optimization)
+- [ ] Optuna (hyperparameter optimization - replaces paper's Orion for Python 3.12+ compatibility)
 - [ ] NiBabel (NIfTI file handling)
 - [ ] SciPy, NumPy, Pandas
 
@@ -29,7 +29,7 @@
 conda create -n meshnet python=3.10
 conda activate meshnet
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
-pip install monai nibabel hydra-core orion scipy pandas
+pip install monai nibabel hydra-core optuna scipy pandas
 ```
 
 ---
@@ -191,10 +191,10 @@ criterion = nn.CrossEntropyLoss(
 
 ## Phase 5: Hyperparameter Optimization (MeshNet Only)
 
-### Orion Setup
+### Optuna Setup (replaces paper's Orion)
 
-- [ ] Install Orion: `pip install orion`
-- [ ] Configure ASHA algorithm
+- [ ] Install Optuna: `pip install optuna`
+- [ ] Configure SuccessiveHalvingPruner for ASHA algorithm
 - [ ] Define search space:
 
 | Parameter | Distribution | Range |
@@ -342,5 +342,5 @@ arc-meshchop/
 - Original MeshNet: https://github.com/neuroneural/brainchop (reference implementation)
 - ARC Dataset: https://openneuro.org (search for Aphasia Recovery Cohort)
 - MONAI: https://monai.io
-- Orion: https://orion.readthedocs.io
+- Optuna: https://optuna.readthedocs.io (replaces paper's Orion for Python 3.12+ compatibility)
 - FreeSurfer: https://surfer.nmr.mgh.harvard.edu

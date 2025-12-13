@@ -120,7 +120,6 @@ class TrainingConfig:
 
     # Precision (FROM PAPER)
     use_fp16: bool = True
-    use_gradient_checkpointing: bool = False
 
     # Checkpointing
     checkpoint_dir: Path = field(default_factory=lambda: Path("checkpoints"))
@@ -148,7 +147,7 @@ class HPOConfig:
     - Search on inner folds of first outer fold only
 
     NOTE: Orion is broken on Python 3.12 (uses deprecated configparser.SafeConfigParser).
-    We use Optuna instead, which supports the same ASHA pruning via MedianPruner/SuccessiveHalving.
+    We use Optuna instead, which supports ASHA pruning via SuccessiveHalvingPruner.
     """
 
     # Framework (Optuna replaces paper's Orion due to Python 3.12 compatibility)
