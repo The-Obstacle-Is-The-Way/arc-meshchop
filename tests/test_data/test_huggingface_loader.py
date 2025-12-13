@@ -178,7 +178,7 @@ class TestVerifySampleCounts:
             ARCSample("sub", "ses", Path("i"), Path("m"), 100, "space_2x") for _ in range(100)
         ]
 
-        with pytest.raises(ValueError, match="Sample count verification failed"):
+        with pytest.raises(ValueError, match="Too few samples"):
             verify_sample_counts(samples)
 
 
