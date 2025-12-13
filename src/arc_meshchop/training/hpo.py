@@ -5,7 +5,7 @@ FROM PAPER Section 2:
 using Orion, an asynchronous framework for black-box function optimization.
 We employed the Asynchronous Successive Halving Algorithm (ASHA)."
 
-This implementation uses Optuna with ASHAMedianPruner for the same effect.
+This implementation uses Optuna with SuccessiveHalvingPruner for the same effect.
 Optuna is more widely used and better maintained than Orion.
 """
 
@@ -115,7 +115,7 @@ def create_study(
     """Create Optuna study for HPO.
 
     FROM PAPER: Uses ASHA for efficient HPO.
-    Optuna's MedianPruner provides similar functionality.
+    Optuna's SuccessiveHalvingPruner provides ASHA functionality.
 
     Args:
         study_name: Name for the study.
