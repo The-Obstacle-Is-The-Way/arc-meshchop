@@ -52,7 +52,7 @@ Complete training setup:
 - Optimizer settings (AdamW)
 - Learning rate scheduling (OneCycleLR)
 - Loss function (weighted cross-entropy + label smoothing)
-- Hyperparameter search with Orion/ASHA
+- Hyperparameter search with Orion/ASHA (our impl uses Optuna for Python 3.12+)
 - Half-precision (FP16) training
 - Hardware requirements
 
@@ -225,13 +225,13 @@ Everything else (Conv3D, BatchNorm3d, ReLU, Xavier init, final 1×1×1 layer) st
 
 ### Referenced Implementations
 
-- **BrainChop:** https://brainchop.org (browser-based MRI segmentation)
-- **MONAI:** https://monai.io (medical imaging framework)
-- **Orion:** https://orion.readthedocs.io (hyperparameter optimization)
+- **BrainChop:** [brainchop.org](https://brainchop.org) (browser-based MRI segmentation)
+- **MONAI:** [monai.io](https://monai.io) (medical imaging framework)
+- **Orion:** [orion.readthedocs.io](https://orion.readthedocs.io) (paper's HPO tool; we use Optuna for Python 3.12+)
 
 ### Dataset
 
-- **OpenNeuro ARC:** Search for "Aphasia Recovery Cohort" on https://openneuro.org
+- **OpenNeuro ARC:** Search for "Aphasia Recovery Cohort" on [openneuro.org](https://openneuro.org)
 
 ### Original Paper Authors
 

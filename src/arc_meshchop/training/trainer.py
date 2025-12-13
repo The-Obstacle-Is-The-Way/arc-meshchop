@@ -4,7 +4,6 @@ FROM PAPER Section 2:
 - Half-precision (FP16) training
 - Batch size 1 (full 256³ volumes)
 - 50 epochs
-- Layer checkpointing for large models
 """
 
 from __future__ import annotations
@@ -275,8 +274,11 @@ class Trainer:
         """
         self.model.eval()
         total_loss = 0.0
-        all_preds: list[torch.Tensor] = []
-        all_targets: list[torch.Tensor] = []
+
+        # Accumulate scores, not tensors
+        dice_scores: list[float] = []
+        avd_scores: list[float] = []
+        mcc_scores: list[float] = []
 
         for images, masks in tqdm(val_loader, desc="Validation"):
             images = images.to(self.device)
@@ -294,23 +296,36 @@ class Trainer:
 
             # Get predictions
             preds = outputs.argmax(dim=1)
-            all_preds.append(preds.cpu())
-            all_targets.append(masks.cpu())
+
+            # Compute metrics for this batch (incrementally)
+            if metrics_calculator:
+                batch_metrics = metrics_calculator.compute_with_stats(preds.cpu(), masks.cpu())
+                dice_scores.extend(batch_metrics["dice"].values)
+                avd_scores.extend(batch_metrics["avd"].values)
+                mcc_scores.extend(batch_metrics["mcc"].values)
+            else:
+                # Basic DICE only
+                # Iterate batch items if batch_size > 1
+                batch_size = preds.shape[0]
+                preds_cpu = preds.cpu()
+                masks_cpu = masks.cpu()
+                for i in range(batch_size):
+                    dice = self._compute_dice(preds_cpu[i], masks_cpu[i])
+                    dice_scores.append(dice)
 
         metrics: dict[str, float] = {"loss": total_loss / len(val_loader)}
 
-        # Compute segmentation metrics if calculator provided
+        # Aggregate metrics
         if metrics_calculator:
-            all_preds_cat = torch.cat(all_preds, dim=0)
-            all_targets_cat = torch.cat(all_targets, dim=0)
-            seg_metrics = metrics_calculator.compute_batch(all_preds_cat, all_targets_cat)
-            metrics.update(seg_metrics)
+            import numpy as np
+
+            metrics["dice"] = float(np.mean(dice_scores)) if dice_scores else 0.0
+            metrics["avd"] = float(np.mean(avd_scores)) if avd_scores else 0.0
+            metrics["mcc"] = float(np.mean(mcc_scores)) if mcc_scores else 0.0
         else:
-            # Compute basic DICE without full metrics
-            metrics["dice"] = self._compute_dice(
-                torch.cat(all_preds, dim=0),
-                torch.cat(all_targets, dim=0),
-            )
+            import numpy as np
+
+            metrics["dice"] = float(np.mean(dice_scores)) if dice_scores else 0.0
 
         return metrics
 

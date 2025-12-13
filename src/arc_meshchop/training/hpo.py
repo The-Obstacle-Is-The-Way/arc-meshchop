@@ -5,7 +5,7 @@ FROM PAPER Section 2:
 using Orion, an asynchronous framework for black-box function optimization.
 We employed the Asynchronous Successive Halving Algorithm (ASHA)."
 
-This implementation uses Optuna with ASHAMedianPruner for the same effect.
+This implementation uses Optuna with SuccessiveHalvingPruner for the same effect.
 Optuna is more widely used and better maintained than Orion.
 """
 
@@ -115,7 +115,7 @@ def create_study(
     """Create Optuna study for HPO.
 
     FROM PAPER: Uses ASHA for efficient HPO.
-    Optuna's MedianPruner provides similar functionality.
+    Optuna's SuccessiveHalvingPruner provides ASHA functionality.
 
     Args:
         study_name: Name for the study.
@@ -132,14 +132,14 @@ def create_study(
         raise ImportError("Optuna is required for HPO. Install with: pip install optuna") from e
 
     # Set up pruner (ASHA-style early stopping)
-    # Use BasePruner type to allow both MedianPruner and NopPruner
+    # Use BasePruner type to allow both SuccessiveHalvingPruner and NopPruner
     pruner: optuna.pruners.BasePruner
     if pruning:
-        # MedianPruner prunes trials that fall below median at intermediate points
-        pruner = optuna.pruners.MedianPruner(
-            n_startup_trials=5,  # Don't prune until 5 complete trials
-            n_warmup_steps=10,  # Don't prune first 10 epochs
-            interval_steps=5,  # Check every 5 epochs
+        # ASHA via SuccessiveHalvingPruner
+        pruner = optuna.pruners.SuccessiveHalvingPruner(
+            min_resource=1,  # Minimum epochs before pruning
+            reduction_factor=3,  # Keep top 1/3 at each rung
+            min_early_stopping_rate=0,
         )
     else:
         pruner = optuna.pruners.NopPruner()

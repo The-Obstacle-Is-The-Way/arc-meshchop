@@ -77,6 +77,8 @@ MeshNet uses **hyperparameter optimization** rather than fixed values.
 **Tool:** Orion (asynchronous black-box optimization)
 **Algorithm:** ASHA (Asynchronous Successive Halving Algorithm)
 
+> **Implementation Note:** Our implementation uses **Optuna** with `SuccessiveHalvingPruner` (ASHA) instead of Orion, for Python 3.12+ compatibility. The ASHA algorithm behavior is identical.
+
 **ASHA Behavior:**
 - Initially evaluates many configurations with few epochs
 - Promotes promising configurations to higher fidelity (more epochs)

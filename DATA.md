@@ -107,42 +107,44 @@ This is the canonical pattern for domain-specific HuggingFace extensions.
 
 ## Where Does the Data Go?
 
+By default, the `arc-meshchop` CLI caches data locally within the project to ensure reproducibility:
+
+```text
+data/arc/
+├── dataset_info.json    # Metadata and paths
+└── cache/               # HuggingFace cache (local)
+    ├── hub/             # Raw downloads
+    └── datasets/        # Processed Arrow files
 ```
+
+If you use `datasets.load_dataset()` directly in Python (without the CLI), it uses the standard location:
+
+```text
 ~/.cache/huggingface/
 ├── hub/
 │   └── datasets--hugging-science--arc-aphasia-bids/
-│       ├── blobs/           # Raw NIfTI files (.nii.gz)
-│       ├── refs/            # Version references
-│       └── snapshots/       # Dataset versions
-│           └── <commit_hash>/
-│               └── data/
-│                   └── train-*.parquet
 └── datasets/
     └── hugging-science___arc-aphasia-bids/
-        └── default/
-            └── 0.0.0/
-                └── <hash>/
-                    └── train-*.arrow   # Processed Arrow files
 ```
 
 ### Customizing Cache Location
 
+You can override the CLI's default cache location:
 ```bash
-# Change ALL HuggingFace caches
+arc-meshchop download --output /path/to/data
+# Data goes to /path/to/data/cache
+```
+
+Or for standard HuggingFace usage:
+```bash
 export HF_HOME=/Volumes/ExternalDrive/huggingface
-
-# Change only datasets cache
-export HF_DATASETS_CACHE=/Volumes/ExternalDrive/hf_datasets
-
-# Change only hub downloads
-export HF_HUB_CACHE=/Volumes/ExternalDrive/hf_hub
 ```
 
 ---
 
 ## What bids_hub Provides (and What We Use)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                    neuroimaging-go-brrrr (bids_hub)                             │
 ├─────────────────────────────────────────────────────────────────────────────────┤
@@ -270,8 +272,8 @@ uv sync --all-extras
 # 2. Download dataset (uses datasets.load_dataset under the hood)
 uv run arc-meshchop download
 
-# 3. Data goes to ~/.cache/huggingface/hub/
-ls ~/.cache/huggingface/hub/datasets--hugging-science--arc-aphasia-bids/
+# 3. Data goes to data/arc/cache/ (project-local)
+ls data/arc/cache/
 
 # 4. Train (loads from cache, filters to 224 samples)
 uv run arc-meshchop train --channels 26 --epochs 50

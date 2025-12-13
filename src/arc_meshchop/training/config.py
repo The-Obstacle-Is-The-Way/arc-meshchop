@@ -50,7 +50,6 @@ class TrainingConfig:
 
     # Precision (FROM PAPER)
     use_fp16: bool = True
-    use_gradient_checkpointing: bool = False
 
     # Checkpointing
     checkpoint_dir: Path = field(default_factory=lambda: Path("checkpoints"))
