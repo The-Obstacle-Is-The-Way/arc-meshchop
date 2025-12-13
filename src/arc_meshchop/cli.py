@@ -452,7 +452,7 @@ def evaluate(
     model = MeshNet(channels=channels)
     model = model.to(device)
 
-    checkpoint_data = torch.load(checkpoint, map_location=device, weights_only=False)
+    checkpoint_data = torch.load(checkpoint, map_location=device, weights_only=True)
     model.load_state_dict(checkpoint_data["model_state_dict"])
     model.eval()
 
@@ -487,9 +487,9 @@ def evaluate(
     import numpy as np
 
     metrics = {
-        "dice": float(np.mean(dice_scores)),
-        "avd": float(np.mean(avd_scores)),
-        "mcc": float(np.mean(mcc_scores)),
+        "dice": float(np.mean(dice_scores)) if dice_scores else 0.0,
+        "avd": float(np.mean(avd_scores)) if avd_scores else 0.0,
+        "mcc": float(np.mean(mcc_scores)) if mcc_scores else 0.0,
     }
 
     console.print()

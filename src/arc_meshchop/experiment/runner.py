@@ -459,7 +459,7 @@ class ExperimentRunner:
             model = MeshNet(channels=self.config.channels)
             model = model.to(device)
             checkpoint = torch.load(
-                best_run.checkpoint_path, map_location=device, weights_only=False
+                best_run.checkpoint_path, map_location=device, weights_only=True
             )
             model.load_state_dict(checkpoint["model_state_dict"])
             model.eval()
@@ -492,9 +492,9 @@ class ExperimentRunner:
                     avd_scores.append(scores["avd"])
                     mcc_scores.append(scores["mcc"])
 
-            test_dice = float(np.mean(dice_scores))
-            test_avd = float(np.mean(avd_scores))
-            test_mcc = float(np.mean(mcc_scores))
+            test_dice = float(np.mean(dice_scores)) if dice_scores else 0.0
+            test_avd = float(np.mean(avd_scores)) if avd_scores else 0.0
+            test_mcc = float(np.mean(mcc_scores)) if mcc_scores else 0.0
 
             test_results.append(
                 {

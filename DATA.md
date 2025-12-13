@@ -144,7 +144,7 @@ export HF_HOME=/Volumes/ExternalDrive/huggingface
 
 ## What bids_hub Provides (and What We Use)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                    neuroimaging-go-brrrr (bids_hub)                             │
 ├─────────────────────────────────────────────────────────────────────────────────┤
