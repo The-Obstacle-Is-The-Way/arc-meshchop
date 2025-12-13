@@ -132,7 +132,7 @@ def create_study(
         raise ImportError("Optuna is required for HPO. Install with: pip install optuna") from e
 
     # Set up pruner (ASHA-style early stopping)
-    # Use BasePruner type to allow both MedianPruner and NopPruner
+    # Use BasePruner type to allow both SuccessiveHalvingPruner and NopPruner
     pruner: optuna.pruners.BasePruner
     if pruning:
         # ASHA via SuccessiveHalvingPruner
