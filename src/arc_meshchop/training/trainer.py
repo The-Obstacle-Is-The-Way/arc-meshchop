@@ -123,6 +123,9 @@ class Trainer:
         # Scheduler will be created in train() when we know total_steps
         self.scheduler: torch.optim.lr_scheduler.OneCycleLR | None = None
 
+        # Pending scheduler state for resume (applied after scheduler creation)
+        self._pending_scheduler_state: dict | None = None
+
         # Create checkpoint directory
         config.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
@@ -154,16 +157,26 @@ class Trainer:
             div_factor=self.config.div_factor,
         )
 
+        # Apply pending scheduler state from checkpoint (BUG-001 fix)
+        if self._pending_scheduler_state is not None:
+            self.scheduler.load_state_dict(self._pending_scheduler_state)
+            self._pending_scheduler_state = None
+            logger.info("Restored scheduler state from checkpoint")
+
+        # Determine starting epoch (support resume)
+        start_epoch = self.state.epoch + 1 if self.state.epoch > 0 else 0
+
         logger.info(
-            "Starting training: %d epochs, %d steps/epoch, %d total steps",
+            "Starting training: %d epochs (from %d), %d steps/epoch, %d total steps",
             self.config.epochs,
+            start_epoch,
             len(train_loader),
             total_steps,
         )
 
         train_loss = 0.0
 
-        for epoch in range(self.config.epochs):
+        for epoch in range(start_epoch, self.config.epochs):
             self.state.epoch = epoch
 
             # Training epoch
@@ -387,16 +400,27 @@ class Trainer:
     def load_checkpoint(self, path: Path | str) -> None:
         """Load model checkpoint.
 
+        Restores model, optimizer, scaler, and training state.
+        Scheduler state is stored as pending and applied after scheduler
+        creation in train() (BUG-001 fix for resume functionality).
+
         Args:
             path: Path to checkpoint file.
         """
-        checkpoint = torch.load(path, map_location=self.device, weights_only=False)
+        # Use weights_only=True for security (BUG-001: P2 fix)
+        checkpoint = torch.load(path, map_location=self.device, weights_only=True)
 
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-        if "scheduler_state_dict" in checkpoint and self.scheduler is not None:
-            self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+        # Store scheduler state as pending (scheduler created in train())
+        if "scheduler_state_dict" in checkpoint:
+            if self.scheduler is not None:
+                self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+            else:
+                # Store for later application in train()
+                self._pending_scheduler_state = checkpoint["scheduler_state_dict"]
+
         if "scaler_state_dict" in checkpoint:
             self.scaler.load_state_dict(checkpoint["scaler_state_dict"])
 
@@ -409,7 +433,7 @@ class Trainer:
                 global_step=state["global_step"],
             )
 
-        logger.info("Loaded checkpoint: %s", path)
+        logger.info("Loaded checkpoint: %s (epoch %d)", path, self.state.epoch)
 
     def train_epoch(self, train_loader: DataLoader) -> dict[str, float]:
         """Run single training epoch (public API for HPO).

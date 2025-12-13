@@ -139,10 +139,14 @@ def download(
         output_dir.mkdir(parents=True, exist_ok=True)
         info_path = output_dir / "dataset_info.json"
 
+        # Write aligned lists - mask_paths must align 1:1 with image_paths
+        # (BUG-001: arc_info.mask_paths filters out None, causing misalignment)
+        mask_paths_aligned = [str(s.mask_path) if s.mask_path else None for s in arc_info.samples]
+
         dataset_info = {
             "num_samples": len(arc_info),
             "image_paths": [str(p) for p in arc_info.image_paths],
-            "mask_paths": [str(p) for p in arc_info.mask_paths],
+            "mask_paths": mask_paths_aligned,
             "lesion_volumes": arc_info.lesion_volumes,
             "acquisition_types": arc_info.acquisition_types,
             "subject_ids": arc_info.subject_ids,
@@ -268,9 +272,20 @@ def train(
         dataset_info = json.load(f)
 
     image_paths = [Path(p) for p in dataset_info["image_paths"]]
-    mask_paths = [Path(p) for p in dataset_info["mask_paths"]]
+    # Handle None values in mask_paths (BUG-001 fix: aligned lists may have None)
+    mask_paths_raw = [Path(p) if p else None for p in dataset_info["mask_paths"]]
     lesion_volumes = dataset_info["lesion_volumes"]
     acquisition_types = dataset_info["acquisition_types"]
+
+    # Verify all samples have masks for training (training requires masks)
+    none_mask_count = sum(1 for m in mask_paths_raw if m is None)
+    if none_mask_count > 0:
+        err_console.print(f"[red]Error: {none_mask_count} samples missing lesion masks.[/red]")
+        err_console.print("Training requires lesion masks. Re-run download with --require-mask.")
+        raise typer.Exit(1)
+
+    # Safe to cast after validation (no None values)
+    mask_paths: list[Path] = cast(list[Path], mask_paths_raw)
 
     console.print(f"Loaded {len(image_paths)} samples from {info_path}")
 

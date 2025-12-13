@@ -617,7 +617,8 @@ def _compute_lesion_volume_from_nifti(nifti_obj: object) -> int:
         else:
             return 0
 
-        return int(np.sum(data > 0.5))
+        # Use > 0 because nibabel scaling can result in values < 0.5 (BUG-001)
+        return int(np.sum(data > 0))
 
     except Exception as e:
         logger.warning("Failed to compute lesion volume: %s", e)

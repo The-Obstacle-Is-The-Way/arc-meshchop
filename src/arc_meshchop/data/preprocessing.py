@@ -34,13 +34,19 @@ if TYPE_CHECKING:
 def load_nifti(path: Path | str) -> tuple[npt.NDArray[np.float32], npt.NDArray[np.float64]]:
     """Load NIfTI file and return data + affine.
 
+    Automatically converts to canonical RAS+ orientation for consistency.
+    Paper uses mri_convert --conform which enforces RAS+ orientation.
+
     Args:
         path: Path to NIfTI file.
 
     Returns:
-        Tuple of (data array, affine matrix).
+        Tuple of (data array in RAS+ orientation, affine matrix).
     """
     nii = nib.load(str(path))  # type: ignore[attr-defined]
+    # Enforce canonical RAS+ orientation (BUG-001: some ARC samples are non-RAS)
+    # This matches paper's mri_convert --conform preprocessing
+    nii = nib.as_closest_canonical(nii)  # type: ignore[attr-defined]
     data = np.asarray(nii.get_fdata(), dtype=np.float32)  # type: ignore[attr-defined]
     affine = np.asarray(nii.affine, dtype=np.float64)  # type: ignore[attr-defined]
     return data, affine
@@ -233,8 +239,11 @@ def preprocess_volume(
             is_mask=True,
         )
 
-        # Binarize mask (in case of interpolation artifacts)
-        mask_normalized = (mask_resampled > 0.5).astype(np.float32)
+        # Binarize mask: any non-zero value is lesion
+        # NOTE: Using > 0 instead of > 0.5 because nibabel's get_fdata() can apply
+        # implicit scaling that results in values < 0.5 for valid lesion voxels.
+        # See BUG-001: sub-M2269_ses-767 has max scaled value of 0.017.
+        mask_normalized = (mask_resampled > 0).astype(np.float32)
 
     return image_normalized, mask_normalized
 
@@ -248,7 +257,8 @@ def compute_lesion_volume(mask: npt.NDArray[np.float32]) -> int:
     Returns:
         Number of lesion voxels.
     """
-    return int(np.sum(mask > 0.5))
+    # Use > 0 for consistency with binarization (see BUG-001)
+    return int(np.sum(mask > 0))
 
 
 def get_lesion_quintile(volume: int) -> str:
