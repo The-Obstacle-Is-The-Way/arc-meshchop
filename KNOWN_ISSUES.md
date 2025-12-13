@@ -16,7 +16,7 @@ The HuggingFace dataset (`hugging-science/arc-aphasia-bids`) does not include ac
 
 ### HuggingFace Schema (Actual)
 
-```
+```text
 subject_id, session_id, t1w, t2w, flair, bold, dwi, sbref, lesion, age_at_stroke, sex, wab_aq, wab_type
 ```
 
@@ -25,7 +25,7 @@ subject_id, session_id, t1w, t2w, flair, bold, dwi, sbref, lesion, age_at_stroke
 ### Why This Matters
 
 The paper explicitly states (Section 2):
-> "We utilized SPACE sequences with x2 in plane acceleration (115 scans) and without acceleration (109 scans), while excluding the turbo-spin echo T2-weighted sequences (5 scans) to maintain homogeneity in imaging protocols."
+> "We utilized SPACE sequences with x2 in-plane acceleration (115 scans) and without acceleration (109 scans), while excluding the turbo-spin echo T2-weighted sequences (5 scans) to maintain homogeneity in imaging protocols."
 
 Without acquisition metadata, we cannot replicate this exact filtering.
 
@@ -154,34 +154,36 @@ If exact paper parity is needed, exclude these subject/session pairs (verified i
 
 ## Issue #3: NIfTI Cache Location in System Temp Directory
 
-**Status:** LOW PRIORITY
+**Status:** FIXED
 **Date Discovered:** 2025-12-12
+**Date Fixed:** 2025-12-13
 **Affected Code:** `src/arc_meshchop/data/huggingface_loader.py`
 
 ### Problem
 
-Downloaded NIfTI files are cached in system temp directory (`/var/folders/.../T/arc_nifti_cache/`) instead of `data/arc/`.
+Downloaded NIfTI files were cached in system temp directory (`/var/folders/.../T/arc_nifti_cache/`) instead of a persistent location.
 
-### Impact
+### Impact (Historical)
 
 - Temp directories are periodically cleaned by OS
 - Files may be lost after restart
-- Reduces reproducibility
+- Reduced reproducibility
 
-### Workaround
+### Fix Applied
 
-Files persist for current session. If lost, re-run download command.
-
-### Fix Required
-
-Pass explicit cache directory to `load_arc_from_huggingface()`:
+The `cache_dir` parameter is now properly passed through to NIfTI extraction:
 
 ```python
-# In CLI download command
-info = load_arc_from_huggingface(
-    cache_dir=Path("data/arc/nifti_cache")
+# In load_arc_from_huggingface()
+nifti_cache_dir = Path(cache_dir) / "nifti_cache" if cache_dir else None
+samples = _extract_samples(
+    dataset,
+    ...,
+    cache_dir=nifti_cache_dir,
 )
 ```
+
+When `cache_dir` is specified, NIfTI files are cached in `{cache_dir}/nifti_cache/`. If not specified, falls back to system temp directory (original behavior).
 
 ---
 
@@ -197,7 +199,7 @@ HuggingFace returns `Nifti1ImageWrapper` objects (in-memory nibabel images) inst
 
 ### Symptoms
 
-```
+```text
 No samples match the specified filters. Check filter settings and dataset contents.
 ```
 
@@ -230,7 +232,8 @@ if hasattr(nifti_obj, "get_fdata"):
 ### Symptom
 
 During validation, macOS prints:
-```
+
+```text
 Python(7991) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
 ```
 
@@ -258,7 +261,7 @@ PyTorch DataLoader spawns worker processes. Those processes try to disable macOS
 
 | Item | Owner | Status |
 |------|-------|--------|
-| Fix temp directory cache location | Codebase | TODO |
+| Fix temp directory cache location | Codebase | DONE |
 | Add paper-parity mode flag to loader | Codebase | TODO |
 | Investigate missing mask for sub-M2039 | Dataset Curator | TODO |
 
@@ -302,4 +305,6 @@ All claims in this document were verified against:
 
 ---
 
-*Last updated: 2025-12-13*
+## Last Updated
+
+2025-12-13

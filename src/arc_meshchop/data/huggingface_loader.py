@@ -165,6 +165,10 @@ def load_arc_from_huggingface(
         ARC_VALIDATION_CONFIG.expected_counts["t2w"],
     )
 
+    # Derive NIfTI cache directory from cache_dir
+    # HuggingFace uses cache_dir for parquet files; we use a subdirectory for NIfTI extraction
+    nifti_cache_dir = Path(cache_dir) / "nifti_cache" if cache_dir else None
+
     # Filter and extract samples
     samples = _extract_samples(
         dataset,
@@ -173,6 +177,7 @@ def load_arc_from_huggingface(
         exclude_turbo_spin_echo=exclude_turbo_spin_echo,
         require_lesion_mask=require_lesion_mask,
         strict_t2w=strict_t2w,
+        cache_dir=nifti_cache_dir,
     )
 
     if not samples:
@@ -468,8 +473,12 @@ def _get_nifti_path(
                 # Create hash from shape + affine for uniqueness
                 affine_str = str(nifti_obj.affine.tobytes()[:64])
                 content_id = hashlib.md5((shape_str + affine_str).encode()).hexdigest()[:12]
-            except Exception:
+            except Exception as e:
                 # Fallback to identifier-based naming
+                logger.debug(
+                    "Failed to extract header/affine for hashing (using identifier-based hash): %s",
+                    e,
+                )
                 content_id = hashlib.md5(identifier.encode()).hexdigest()[:12]
 
             cache_path = cache_dir / f"{identifier}_{content_id}.nii.gz"
