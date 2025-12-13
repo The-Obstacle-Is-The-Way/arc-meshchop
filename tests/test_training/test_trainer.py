@@ -200,6 +200,66 @@ class TestTrainer:
         # State should be loaded
         assert trainer2.state.epoch == trainer.state.epoch
 
+    def test_trainer_resume_from_epoch_0_checkpoint(
+        self,
+        tiny_train_loader: DataLoader,
+        tiny_val_loader: DataLoader,
+        tmp_path: Path,
+    ) -> None:
+        """Verify resume continues from next epoch without OneCycleLR stepping past total_steps."""
+        model = meshnet_5()
+        checkpoint_dir = tmp_path / "checkpoints"
+        config = TrainingConfig(
+            epochs=2,
+            use_fp16=False,
+            checkpoint_dir=checkpoint_dir,
+            save_best_only=False,
+            save_every_n_epochs=1,  # Ensure epoch_1.pt exists after epoch 0
+        )
+        trainer = Trainer(model, config, device=torch.device("cpu"))
+
+        # Train full run to produce epoch_1 checkpoint (saved after epoch 0)
+        trainer.train(tiny_train_loader, tiny_val_loader)
+        epoch_1 = checkpoint_dir / "epoch_1.pt"
+        assert epoch_1.exists()
+
+        # Resume from epoch_1 checkpoint and ensure it completes without error
+        model2 = meshnet_5()
+        trainer2 = Trainer(model2, config, device=torch.device("cpu"))
+        trainer2.load_checkpoint(epoch_1)
+
+        trainer2.train(tiny_train_loader, tiny_val_loader)
+
+        expected_steps = len(tiny_train_loader) * config.epochs
+        assert trainer2.state.global_step == expected_steps
+        assert trainer2.state.epoch == config.epochs - 1
+
+    def test_trainer_skips_autocast_when_amp_disabled(
+        self,
+        tiny_train_loader: DataLoader,
+        tiny_val_loader: DataLoader,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Verify autocast context isn't entered when AMP is disabled (avoids MPS warnings)."""
+        import arc_meshchop.training.trainer as trainer_module
+
+        def _boom(*args: object, **kwargs: object) -> None:
+            raise AssertionError("autocast should not be called when AMP is disabled")
+
+        monkeypatch.setattr(trainer_module, "autocast", _boom)
+
+        model = meshnet_5()
+        config = TrainingConfig(
+            epochs=1,
+            use_fp16=False,
+            checkpoint_dir=tmp_path / "checkpoints",
+        )
+        trainer = Trainer(model, config, device=torch.device("cpu"))
+        assert trainer._amp_enabled is False
+
+        trainer.train(tiny_train_loader, tiny_val_loader)
+
     def test_trainer_updates_best_dice(
         self,
         tiny_train_loader: DataLoader,

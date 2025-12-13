@@ -164,7 +164,11 @@ class Trainer:
             logger.info("Restored scheduler state from checkpoint")
 
         # Determine starting epoch (support resume)
-        start_epoch = self.state.epoch + 1 if self.state.epoch > 0 else 0
+        # NOTE: We only checkpoint at epoch boundaries. If we've already taken any
+        # optimizer steps, assume the checkpoint represents a completed epoch and
+        # continue from the next epoch (BUG-001: resuming from epoch 0 previously
+        # re-ran epoch 0 and could crash OneCycleLR by stepping past total_steps).
+        start_epoch = self.state.epoch + 1 if self.state.global_step > 0 else 0
 
         logger.info(
             "Starting training: %d epochs (from %d), %d steps/epoch, %d total steps",
@@ -238,11 +242,15 @@ class Trainer:
             # Forward pass with platform-aware mixed precision
             self.optimizer.zero_grad()
 
-            with autocast(
-                device_type=self.device.type,
-                dtype=self._amp_dtype,
-                enabled=self._amp_enabled,
-            ):
+            if self._amp_enabled:
+                with autocast(
+                    device_type=self.device.type,
+                    dtype=self._amp_dtype,
+                    enabled=True,
+                ):
+                    outputs = self.model(images)
+                    loss = self.loss_fn(outputs, masks)
+            else:
                 outputs = self.model(images)
                 loss = self.loss_fn(outputs, masks)
 
@@ -297,11 +305,15 @@ class Trainer:
             images = images.to(self.device)
             masks = masks.to(self.device)
 
-            with autocast(
-                device_type=self.device.type,
-                dtype=self._amp_dtype,
-                enabled=self._amp_enabled,
-            ):
+            if self._amp_enabled:
+                with autocast(
+                    device_type=self.device.type,
+                    dtype=self._amp_dtype,
+                    enabled=True,
+                ):
+                    outputs = self.model(images)
+                    loss = self.loss_fn(outputs, masks)
+            else:
                 outputs = self.model(images)
                 loss = self.loss_fn(outputs, masks)
 
