@@ -232,6 +232,7 @@ __marimo__/
 # Data (large files)
 data/raw/
 data/processed/
+data/arc/
 *.nii
 *.nii.gz
 *.mgz
