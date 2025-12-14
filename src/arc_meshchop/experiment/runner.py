@@ -1,11 +1,20 @@
 """Experiment runner for full paper replication.
 
-Orchestrates 90 training runs:
-- 3 outer folds x 3 inner folds x 10 restarts
+Orchestrates 30 training runs:
+- 3 outer folds x 10 restarts = 30 runs
 
 FROM PAPER:
-"we trained the model with 10 restarts"
-"nested cross-validation approach with three outer folds"
+"Hyperparameter optimization was conducted on the inner folds of the first
+outer fold. The optimized hyperparameters were then applied to train models
+on all outer folds."
+
+This means:
+- HP search was only on Outer Fold 1 (we skip this, using paper's final HPs)
+- Final training uses FULL outer-train data (no inner fold split)
+- Fixed epochs (50) - no validation-based early stopping needed
+- 10 restarts for stability/averaging
+
+See NESTED-CV-PROTOCOL.md for full analysis.
 """
 
 from __future__ import annotations
@@ -29,55 +38,83 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class RunResult:
-    """Result from a single training run."""
+    """Result from a single training run.
+
+    In the paper's protocol, we train on FULL outer-train (no inner fold split)
+    for fixed epochs. The "best_dice" here is the TEST DICE on outer-test,
+    evaluated after training completes.
+    """
 
     outer_fold: int
-    inner_fold: int
     restart: int
     seed: int
-    best_dice: float
-    best_epoch: int
+    test_dice: float  # DICE on outer test set
+    test_avd: float  # AVD on outer test set
+    test_mcc: float  # MCC on outer test set
     final_train_loss: float
     checkpoint_path: str
     duration_seconds: float
+    # Per-subject scores for paper-parity aggregation
+    per_subject_dice: list[float]
+    per_subject_avd: list[float]
+    per_subject_mcc: list[float]
+    subject_indices: list[int]
 
 
 @dataclass
 class FoldResult:
-    """Aggregated results for a single fold (across restarts)."""
+    """Aggregated results for a single outer fold (across restarts).
+
+    In the paper's protocol, we train 10 restarts per outer fold on FULL
+    outer-train data. Each restart evaluates on outer-test immediately.
+    """
 
     outer_fold: int
-    inner_fold: int
     runs: list[RunResult]
 
     @property
     def mean_dice(self) -> float:
-        """Mean DICE across restarts."""
-        return sum(r.best_dice for r in self.runs) / len(self.runs)
+        """Mean TEST DICE across restarts."""
+        return sum(r.test_dice for r in self.runs) / len(self.runs)
 
     @property
     def std_dice(self) -> float:
-        """Standard deviation of DICE across restarts."""
-        return float(np.std([r.best_dice for r in self.runs]))
+        """Standard deviation of TEST DICE across restarts."""
+        return float(np.std([r.test_dice for r in self.runs]))
 
     @property
     def best_dice(self) -> float:
-        """Best DICE among restarts."""
-        return max(r.best_dice for r in self.runs)
+        """Best TEST DICE among restarts."""
+        return max(r.test_dice for r in self.runs)
 
     @property
     def best_run(self) -> RunResult:
-        """Run with best DICE."""
-        return max(self.runs, key=lambda r: r.best_dice)
+        """Run with best TEST DICE."""
+        return max(self.runs, key=lambda r: r.test_dice)
+
+    def get_all_per_subject_scores(self) -> dict[int, dict[str, float]]:
+        """Get per-subject scores from best restart for aggregation."""
+        best = self.best_run
+        scores: dict[int, dict[str, float]] = {}
+        for i, idx in enumerate(best.subject_indices):
+            scores[idx] = {
+                "dice": best.per_subject_dice[i],
+                "avd": best.per_subject_avd[i],
+                "mcc": best.per_subject_mcc[i],
+            }
+        return scores
 
 
 @dataclass
 class ExperimentResult:
-    """Complete experiment results."""
+    """Complete experiment results.
+
+    In the paper's protocol, each run trains on FULL outer-train and evaluates
+    on outer-test immediately. Results are stored in FoldResult objects.
+    """
 
     config: dict
     folds: list[FoldResult]
-    test_results: list[dict]  # Per outer fold test set evaluation
     start_time: str
     end_time: str
     total_duration_hours: float
@@ -96,20 +133,24 @@ class ExperimentResult:
     def _get_pooled_scores(self, metric: str) -> list[float]:
         """Get pooled per-subject scores across all outer folds.
 
+        Uses the BEST restart from each outer fold to get per-subject scores.
+        Pools all ~224 subjects for paper-parity statistics.
+
         Args:
             metric: One of 'dice', 'avd', 'mcc'.
 
         Returns:
             List of all per-subject scores pooled from outer test folds.
         """
-        key = f"per_subject_{metric}"
         all_scores: list[float] = []
-        for t in self.test_results:
-            if key in t:
-                all_scores.extend(t[key])
-            else:
-                # Fallback for legacy results without per-subject data
-                all_scores.append(t.get(f"test_{metric}", 0.0))
+        for fold in self.folds:
+            best_run = fold.best_run
+            if metric == "dice":
+                all_scores.extend(best_run.per_subject_dice)
+            elif metric == "avd":
+                all_scores.extend(best_run.per_subject_avd)
+            elif metric == "mcc":
+                all_scores.extend(best_run.per_subject_mcc)
         return all_scores
 
     @property
@@ -165,46 +206,38 @@ class ExperimentResult:
     def get_per_subject_scores(self) -> dict[int, dict[str, float]]:
         """Get per-subject scores indexed by subject ID for Wilcoxon pairing.
 
+        Uses the BEST restart from each outer fold.
+
         Returns:
             Dict mapping subject index to metrics dict.
         """
         scores_by_subject: dict[int, dict[str, float]] = {}
-        for t in self.test_results:
-            indices = t.get("subject_indices", [])
-            dices = t.get("per_subject_dice", [])
-            avds = t.get("per_subject_avd", [])
-            mccs = t.get("per_subject_mcc", [])
-            for i, idx in enumerate(indices):
+        for fold in self.folds:
+            best_run = fold.best_run
+            for i, idx in enumerate(best_run.subject_indices):
                 scores_by_subject[idx] = {
-                    "dice": dices[i] if i < len(dices) else 0.0,
-                    "avd": avds[i] if i < len(avds) else 0.0,
-                    "mcc": mccs[i] if i < len(mccs) else 0.0,
+                    "dice": best_run.per_subject_dice[i],
+                    "avd": best_run.per_subject_avd[i],
+                    "mcc": best_run.per_subject_mcc[i],
                 }
         return scores_by_subject
-
-    # Validation metrics (for debugging/monitoring, NOT for paper parity)
-    @property
-    def val_mean_dice(self) -> float:
-        """Overall mean validation DICE (for monitoring only)."""
-        all_dices = [r.best_dice for fold in self.folds for r in fold.runs]
-        return sum(all_dices) / len(all_dices) if all_dices else 0.0
-
-    @property
-    def val_std_dice(self) -> float:
-        """Overall std of validation DICE (for monitoring only)."""
-        all_dices = [r.best_dice for fold in self.folds for r in fold.runs]
-        return float(np.std(all_dices)) if all_dices else 0.0
 
 
 class ExperimentRunner:
     """Run full nested CV experiment.
 
     Implements the paper's experimental protocol:
-    1. Train on inner folds of each outer fold
-    2. 10 restarts per inner fold
-    3. Select best model per outer fold
-    4. Evaluate on outer fold test set
-    5. Report mean +/- std across all runs
+    1. For each outer fold, train on FULL outer-train data (no inner split)
+    2. 10 restarts per outer fold for stability
+    3. Evaluate on outer-test immediately after training
+    4. Pool per-subject scores across all folds for final statistics
+
+    FROM PAPER:
+    "Hyperparameter optimization was conducted on the inner folds of the first
+    outer fold. The optimized hyperparameters were then applied to train models
+    on all outer folds."
+
+    We skip HP search (using paper's final HPs) and go directly to final evaluation.
     """
 
     def __init__(self, config: ExperimentConfig) -> None:
@@ -227,38 +260,33 @@ class ExperimentRunner:
             ExperimentResult with all training and test results.
         """
         logger.info(
-            "Starting experiment: %d outer x %d inner x %d restarts = %d runs",
+            "Starting experiment: %d outer folds x %d restarts = %d runs",
             self.config.num_outer_folds,
-            self.config.num_inner_folds,
             self.config.num_restarts,
             self.config.total_runs,
         )
 
         # Run all training configurations
+        # Paper protocol: Train on FULL outer-train, no inner fold loop
         for outer_fold in range(self.config.num_outer_folds):
-            for inner_fold in range(self.config.num_inner_folds):
-                for restart in range(self.config.num_restarts):
-                    result = self._run_single(outer_fold, inner_fold, restart)
-                    self.results.append(result)
+            for restart in range(self.config.num_restarts):
+                result = self._run_single(outer_fold, restart)
+                self.results.append(result)
 
-                    # Log progress
-                    completed = len(self.results)
-                    logger.info(
-                        "Progress: %d/%d (%.1f%%) - Fold %d.%d Restart %d: DICE=%.4f",
-                        completed,
-                        self.config.total_runs,
-                        100 * completed / self.config.total_runs,
-                        outer_fold,
-                        inner_fold,
-                        restart,
-                        result.best_dice,
-                    )
+                # Log progress
+                completed = len(self.results)
+                logger.info(
+                    "Progress: %d/%d (%.1f%%) - Fold %d Restart %d: TEST DICE=%.4f",
+                    completed,
+                    self.config.total_runs,
+                    100 * completed / self.config.total_runs,
+                    outer_fold,
+                    restart,
+                    result.test_dice,
+                )
 
         # Aggregate results by fold
         folds = self._aggregate_by_fold()
-
-        # Evaluate best models on test sets
-        test_results = self._evaluate_on_test_sets(folds)
 
         # Create final result
         end_time = datetime.now()
@@ -267,7 +295,6 @@ class ExperimentRunner:
         experiment_result = ExperimentResult(
             config=asdict(self.config),
             folds=folds,
-            test_results=test_results,
             start_time=self.start_time.isoformat(),
             end_time=end_time.isoformat(),
             total_duration_hours=duration,
@@ -287,31 +314,34 @@ class ExperimentRunner:
     def _run_single(
         self,
         outer_fold: int,
-        inner_fold: int,
         restart: int,
     ) -> RunResult:
         """Run single training configuration.
 
+        Paper protocol:
+        1. Train on FULL outer-train data (no inner fold split)
+        2. Train for fixed 50 epochs (no validation-based early stopping)
+        3. Evaluate on outer-test immediately after training
+
         Args:
             outer_fold: Outer fold index (0-2).
-            inner_fold: Inner fold index (0-2).
             restart: Restart index (0-9).
 
         Returns:
-            RunResult with training metrics.
+            RunResult with test metrics.
         """
         from arc_meshchop.data import (
             ARCDataset,
-            create_dataloaders,
             create_stratification_labels,
-            generate_nested_cv_splits,
             get_lesion_quintile,
         )
+        from arc_meshchop.data.splits import generate_outer_cv_splits
+        from arc_meshchop.evaluation import SegmentationMetrics
         from arc_meshchop.models import MeshNet
         from arc_meshchop.training import Trainer, TrainingConfig
         from arc_meshchop.utils.device import get_device
 
-        run_id = f"fold_{outer_fold}_{inner_fold}_restart_{restart}"
+        run_id = f"fold_{outer_fold}_restart_{restart}"
         run_dir = self.config.output_dir / run_id
 
         # Create run directory before training (checkpointing needs this)
@@ -340,38 +370,36 @@ class ExperimentRunner:
         lesion_volumes = dataset_info["lesion_volumes"]
         acquisition_types = dataset_info["acquisition_types"]
 
-        # Generate splits
+        # Generate OUTER-only splits (no inner folds needed for replication)
         quintiles = [get_lesion_quintile(v) for v in lesion_volumes]
         strat_labels = create_stratification_labels(quintiles, acquisition_types)
 
-        splits = generate_nested_cv_splits(
+        splits = generate_outer_cv_splits(
             n_samples=len(image_paths),
             stratification_labels=strat_labels,
-            num_outer_folds=self.config.num_outer_folds,
-            num_inner_folds=self.config.num_inner_folds,
+            num_folds=self.config.num_outer_folds,
             random_seed=42,  # Fixed for reproducible splits
         )
 
-        split = splits.get_split(outer_fold, inner_fold)
+        split = splits.get_split(outer_fold)
+        train_indices = split.train_indices
+        test_indices = split.test_indices
 
-        # Create datasets
+        # Create FULL outer-train dataset (no validation holdout)
+        # Paper: "Train on full outer-train for 50 fixed epochs"
         train_dataset = ARCDataset(
-            image_paths=[Path(image_paths[i]) for i in split.train_indices],
-            mask_paths=[Path(mask_paths[i]) for i in split.train_indices],
+            image_paths=[Path(image_paths[i]) for i in train_indices],
+            mask_paths=[Path(mask_paths[i]) for i in train_indices],
             cache_dir=self.config.data_dir / "cache" / run_id / "train",
         )
 
-        val_dataset = ARCDataset(
-            image_paths=[Path(image_paths[i]) for i in split.val_indices],
-            mask_paths=[Path(mask_paths[i]) for i in split.val_indices],
-            cache_dir=self.config.data_dir / "cache" / run_id / "val",
-        )
-
-        train_loader, val_loader = create_dataloaders(
+        # No validation dataset - we use fixed epochs, no early stopping
+        train_loader = torch.utils.data.DataLoader(
             train_dataset,
-            val_dataset,
             batch_size=1,
+            shuffle=True,
             num_workers=4,
+            pin_memory=torch.cuda.is_available(),
         )
 
         # Create model
@@ -394,193 +422,89 @@ class ExperimentRunner:
             random_seed=seed,
         )
 
-        # Train
+        # Train (no validation loader - fixed epochs, no early stopping)
         trainer = Trainer(model, training_config, device=device)
-        results = trainer.train(train_loader, val_loader)
+        train_results = trainer.train(train_loader, val_loader=None)
+
+        # Immediately evaluate on outer-test
+        test_dataset = ARCDataset(
+            image_paths=[Path(image_paths[i]) for i in test_indices],
+            mask_paths=[Path(mask_paths[i]) for i in test_indices],
+        )
+
+        metrics_calculator = SegmentationMetrics()
+        dice_scores: list[float] = []
+        avd_scores: list[float] = []
+        mcc_scores: list[float] = []
+
+        model.eval()
+        with torch.no_grad():
+            for idx in range(len(test_dataset)):
+                image, mask = test_dataset[idx]
+                image = image.unsqueeze(0).to(device)
+
+                output = model(image)
+                pred = output.argmax(dim=1).squeeze(0).cpu()
+
+                scores = metrics_calculator.compute_single(pred, mask)
+                dice_scores.append(scores["dice"])
+                avd_scores.append(scores["avd"])
+                mcc_scores.append(scores["mcc"])
 
         duration = time.time() - start_time
 
-        # Create result
+        # Create result with per-subject scores
         run_result = RunResult(
             outer_fold=outer_fold,
-            inner_fold=inner_fold,
             restart=restart,
             seed=seed,
-            best_dice=float(results["best_dice"]),
-            best_epoch=int(results["best_epoch"]),
-            final_train_loss=float(results["final_train_loss"]),
-            checkpoint_path=str(run_dir / "best.pt"),
+            test_dice=float(np.mean(dice_scores)) if dice_scores else 0.0,
+            test_avd=float(np.mean(avd_scores)) if avd_scores else 0.0,
+            test_mcc=float(np.mean(mcc_scores)) if mcc_scores else 0.0,
+            final_train_loss=float(train_results["final_train_loss"]),
+            checkpoint_path=str(run_dir / "final.pt"),
             duration_seconds=duration,
+            per_subject_dice=dice_scores,
+            per_subject_avd=avd_scores,
+            per_subject_mcc=mcc_scores,
+            subject_indices=list(test_indices),
         )
 
-        # Save individual result (run_dir already created above)
+        # Save individual result
         results_file.write_text(json.dumps(asdict(run_result), indent=2))
+
+        # Save final checkpoint
+        torch.save(
+            {"model_state_dict": model.state_dict(), "config": asdict(self.config)},
+            run_dir / "final.pt",
+        )
 
         return run_result
 
     def _aggregate_by_fold(self) -> list[FoldResult]:
-        """Aggregate results by fold.
+        """Aggregate results by outer fold.
 
         Returns:
-            List of FoldResult objects.
+            List of FoldResult objects (one per outer fold).
         """
         folds = []
 
         for outer in range(self.config.num_outer_folds):
-            for inner in range(self.config.num_inner_folds):
-                fold_runs = [
-                    r for r in self.results if r.outer_fold == outer and r.inner_fold == inner
-                ]
-                # Fail fast if no runs collected (prevents div-by-zero in FoldResult)
-                if not fold_runs:
-                    raise RuntimeError(
-                        f"No runs collected for fold {outer}.{inner}. "
-                        f"Check num_restarts ({self.config.num_restarts}) and run execution."
-                    )
-                folds.append(
-                    FoldResult(
-                        outer_fold=outer,
-                        inner_fold=inner,
-                        runs=fold_runs,
-                    )
+            fold_runs = [r for r in self.results if r.outer_fold == outer]
+            # Fail fast if no runs collected (prevents div-by-zero in FoldResult)
+            if not fold_runs:
+                raise RuntimeError(
+                    f"No runs collected for outer fold {outer}. "
+                    f"Check num_restarts ({self.config.num_restarts}) and run execution."
                 )
+            folds.append(
+                FoldResult(
+                    outer_fold=outer,
+                    runs=fold_runs,
+                )
+            )
 
         return folds
-
-    def _evaluate_on_test_sets(self, folds: list[FoldResult]) -> list[dict]:
-        """Evaluate best models on held-out test sets.
-
-        For each outer fold, select best model from inner folds
-        and evaluate on the outer fold's test set.
-
-        Args:
-            folds: Aggregated fold results.
-
-        Returns:
-            Test results per outer fold.
-        """
-        from arc_meshchop.data import (
-            ARCDataset,
-            create_stratification_labels,
-            generate_nested_cv_splits,
-            get_lesion_quintile,
-        )
-        from arc_meshchop.evaluation import SegmentationMetrics
-        from arc_meshchop.models import MeshNet
-        from arc_meshchop.utils.device import get_device
-
-        test_results = []
-        device = get_device()
-        metrics_calculator = SegmentationMetrics()
-
-        dataset_info = self._load_dataset_info()
-        image_paths = dataset_info["image_paths"]
-        mask_paths = dataset_info["mask_paths"]
-        lesion_volumes = dataset_info["lesion_volumes"]
-        acquisition_types = dataset_info["acquisition_types"]
-
-        quintiles = [get_lesion_quintile(v) for v in lesion_volumes]
-        strat_labels = create_stratification_labels(quintiles, acquisition_types)
-
-        splits = generate_nested_cv_splits(
-            n_samples=len(image_paths),
-            stratification_labels=strat_labels,
-            num_outer_folds=self.config.num_outer_folds,
-            num_inner_folds=self.config.num_inner_folds,
-            random_seed=42,
-        )
-
-        for outer_fold in range(self.config.num_outer_folds):
-            # Find best model for this outer fold
-            outer_folds = [f for f in folds if f.outer_fold == outer_fold]
-            best_fold = max(outer_folds, key=lambda f: f.mean_dice)
-            best_run = best_fold.best_run
-
-            logger.info(
-                "Outer fold %d: Best model from inner fold %d restart %d (DICE=%.4f)",
-                outer_fold,
-                best_run.inner_fold,
-                best_run.restart,
-                best_run.best_dice,
-            )
-
-            # Load model
-            model = MeshNet(channels=self.config.channels)
-            model = model.to(device)
-            checkpoint = torch.load(
-                best_run.checkpoint_path, map_location=device, weights_only=True
-            )
-            model.load_state_dict(checkpoint["model_state_dict"])
-            model.eval()
-
-            # Get test indices
-            split = splits.get_split(outer_fold, inner_fold=None)
-            test_indices = split.test_indices
-
-            # Create test dataset
-            test_dataset = ARCDataset(
-                image_paths=[Path(image_paths[i]) for i in test_indices],
-                mask_paths=[Path(mask_paths[i]) for i in test_indices],
-            )
-
-            # Evaluate
-            dice_scores = []
-            avd_scores = []
-            mcc_scores = []
-
-            with torch.no_grad():
-                for idx in range(len(test_dataset)):
-                    image, mask = test_dataset[idx]
-                    image = image.unsqueeze(0).to(device)
-
-                    output = model(image)
-                    pred = output.argmax(dim=1).squeeze(0).cpu()
-
-                    scores = metrics_calculator.compute_single(pred, mask)
-                    dice_scores.append(scores["dice"])
-                    avd_scores.append(scores["avd"])
-                    mcc_scores.append(scores["mcc"])
-
-            # Compute fold-level means (for backward compatibility and logging)
-            test_dice = float(np.mean(dice_scores)) if dice_scores else 0.0
-            test_avd = float(np.mean(avd_scores)) if avd_scores else 0.0
-            test_mcc = float(np.mean(mcc_scores)) if mcc_scores else 0.0
-
-            # Store both fold-level means AND per-subject scores
-            # Per-subject scores are required for:
-            # - Paper-parity std computation (n≈224, not n=3)
-            # - Boxplot generation (Figure 1)
-            # - IQR error bars (Figure 2)
-            # - Wilcoxon paired testing (Table 1)
-            # See docs/bugs/BUG-002-metric-aggregation.md
-            test_results.append(
-                {
-                    "outer_fold": outer_fold,
-                    "best_inner_fold": best_run.inner_fold,
-                    "best_restart": best_run.restart,
-                    "best_val_dice": best_run.best_dice,
-                    # Fold-level means (for logging/backward compat)
-                    "test_dice": test_dice,
-                    "test_avd": test_avd,
-                    "test_mcc": test_mcc,
-                    "num_test_samples": len(test_indices),
-                    # Per-subject scores (for paper-parity aggregation)
-                    "subject_indices": list(test_indices),
-                    "per_subject_dice": dice_scores,
-                    "per_subject_avd": avd_scores,
-                    "per_subject_mcc": mcc_scores,
-                }
-            )
-
-            logger.info(
-                "Outer fold %d test: DICE=%.4f, AVD=%.4f, MCC=%.4f",
-                outer_fold,
-                test_dice,
-                test_avd,
-                test_mcc,
-            )
-
-        return test_results
 
     def _load_dataset_info(self) -> dict:
         """Load dataset info from JSON."""
@@ -602,15 +526,14 @@ class ExperimentRunner:
             "folds": [
                 {
                     "outer_fold": f.outer_fold,
-                    "inner_fold": f.inner_fold,
-                    "mean_dice": f.mean_dice,
-                    "std_dice": f.std_dice,
-                    "best_dice": f.best_dice,
+                    "mean_dice": f.mean_dice,  # Mean across restarts
+                    "std_dice": f.std_dice,  # Std across restarts
+                    "best_dice": f.best_dice,  # Best restart
+                    "num_restarts": len(f.runs),
                     "runs": [asdict(r) for r in f.runs],
                 }
                 for f in result.folds
             ],
-            "test_results": result.test_results,
             "summary": {
                 # PRIMARY: Test metrics computed from POOLED per-subject scores (n≈224)
                 # This matches paper protocol - see docs/bugs/BUG-002-metric-aggregation.md
@@ -624,9 +547,6 @@ class ExperimentRunner:
                 "test_std_mcc": result.test_std_mcc,
                 # Total subjects in pooled test set
                 "num_test_subjects": len(result._get_pooled_scores("dice")),
-                # SECONDARY: Validation metrics (for monitoring only)
-                "val_mean_dice": result.val_mean_dice,
-                "val_std_dice": result.val_std_dice,
                 # Paper targets
                 "target_dice": 0.876,  # FROM PAPER
                 "paper_parity": result.test_mean_dice >= 0.86,  # Use TEST DICE for parity

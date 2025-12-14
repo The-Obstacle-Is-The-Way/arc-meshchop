@@ -2,23 +2,32 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
+
+if TYPE_CHECKING:
+    from arc_meshchop.experiment.runner import FoldResult, RunResult
 
 
 class TestExperimentConfig:
     """Tests for ExperimentConfig."""
 
     def test_total_runs(self) -> None:
-        """Verify total run calculation."""
+        """Verify total run calculation.
+
+        Paper protocol: 3 outer folds x 10 restarts = 30 runs.
+        No inner folds for replication (HPs already known).
+        """
         from arc_meshchop.experiment.config import ExperimentConfig
 
         config = ExperimentConfig(
             num_outer_folds=3,
-            num_inner_folds=3,
             num_restarts=10,
         )
 
-        assert config.total_runs == 90
+        # Paper protocol: 3 x 10 = 30 (NOT 90!)
+        assert config.total_runs == 30
 
     def test_channel_mapping(self) -> None:
         """Verify model variant to channels mapping."""
@@ -57,50 +66,53 @@ class TestExperimentConfig:
 class TestFoldResult:
     """Tests for FoldResult aggregation."""
 
+    def _make_run(
+        self,
+        outer_fold: int,
+        restart: int,
+        test_dice: float,
+        num_subjects: int = 3,
+    ) -> RunResult:
+        """Helper to create a RunResult with required fields."""
+        from arc_meshchop.experiment.runner import RunResult
+
+        return RunResult(
+            outer_fold=outer_fold,
+            restart=restart,
+            seed=42 + restart,
+            test_dice=test_dice,
+            test_avd=0.25,
+            test_mcc=0.75,
+            final_train_loss=0.1,
+            checkpoint_path="/path",
+            duration_seconds=100,
+            per_subject_dice=[test_dice] * num_subjects,
+            per_subject_avd=[0.25] * num_subjects,
+            per_subject_mcc=[0.75] * num_subjects,
+            subject_indices=list(range(num_subjects)),
+        )
+
     def test_mean_dice(self) -> None:
         """Verify mean DICE calculation."""
-        from arc_meshchop.experiment.runner import FoldResult, RunResult
+        from arc_meshchop.experiment.runner import FoldResult
 
-        runs = [
-            RunResult(
-                outer_fold=0,
-                inner_fold=0,
-                restart=i,
-                seed=42 + i,
-                best_dice=0.8 + i * 0.01,
-                best_epoch=50,
-                final_train_loss=0.1,
-                checkpoint_path="/path",
-                duration_seconds=100,
-            )
-            for i in range(5)
-        ]
+        runs = [self._make_run(0, i, 0.8 + i * 0.01) for i in range(5)]
 
-        fold = FoldResult(outer_fold=0, inner_fold=0, runs=runs)
+        fold = FoldResult(outer_fold=0, runs=runs)
 
         # Mean of [0.8, 0.81, 0.82, 0.83, 0.84] = 0.82
         assert fold.mean_dice == pytest.approx(0.82)
 
     def test_best_run(self) -> None:
         """Verify best run selection."""
-        from arc_meshchop.experiment.runner import FoldResult, RunResult
+        from arc_meshchop.experiment.runner import FoldResult
 
         runs = [
-            RunResult(
-                outer_fold=0,
-                inner_fold=0,
-                restart=i,
-                seed=42,
-                best_dice=0.8 if i != 2 else 0.9,  # Restart 2 is best
-                best_epoch=50,
-                final_train_loss=0.1,
-                checkpoint_path="/path",
-                duration_seconds=100,
-            )
+            self._make_run(0, i, 0.8 if i != 2 else 0.9)  # Restart 2 is best
             for i in range(5)
         ]
 
-        fold = FoldResult(outer_fold=0, inner_fold=0, runs=runs)
+        fold = FoldResult(outer_fold=0, runs=runs)
 
         assert fold.best_run.restart == 2
         assert fold.best_dice == 0.9
@@ -109,60 +121,69 @@ class TestFoldResult:
         """Verify std DICE calculation."""
         import numpy as np
 
-        from arc_meshchop.experiment.runner import FoldResult, RunResult
+        from arc_meshchop.experiment.runner import FoldResult
 
-        runs = [
-            RunResult(
-                outer_fold=0,
-                inner_fold=0,
-                restart=i,
-                seed=42 + i,
-                best_dice=0.8 + i * 0.01,
-                best_epoch=50,
-                final_train_loss=0.1,
-                checkpoint_path="/path",
-                duration_seconds=100,
-            )
-            for i in range(5)
-        ]
+        runs = [self._make_run(0, i, 0.8 + i * 0.01) for i in range(5)]
 
-        fold = FoldResult(outer_fold=0, inner_fold=0, runs=runs)
+        fold = FoldResult(outer_fold=0, runs=runs)
 
         expected_std = np.std([0.8, 0.81, 0.82, 0.83, 0.84])
         assert fold.std_dice == pytest.approx(expected_std)
 
 
 class TestExperimentResult:
-    """Tests for ExperimentResult aggregation."""
+    """Tests for ExperimentResult aggregation.
 
-    def test_test_mean_dice_legacy(self) -> None:
-        """Verify backward compat: mean from fold-level means when no per-subject data."""
-        from arc_meshchop.experiment.runner import ExperimentResult
+    In the new protocol, ExperimentResult gets per-subject scores from
+    FoldResult objects (which contain RunResult objects with per-subject data).
+    """
 
-        result = ExperimentResult(
-            config={},
-            folds=[],
-            test_results=[
-                {"test_dice": 0.85, "test_avd": 0.25, "test_mcc": 0.75},
-                {"test_dice": 0.87, "test_avd": 0.24, "test_mcc": 0.76},
-                {"test_dice": 0.86, "test_avd": 0.26, "test_mcc": 0.74},
-            ],
-            start_time="2024-01-01T00:00:00",
-            end_time="2024-01-02T00:00:00",
-            total_duration_hours=24.0,
+    def _make_run(
+        self,
+        outer_fold: int,
+        restart: int,
+        per_subject_dice: list[float],
+        subject_indices: list[int],
+    ) -> RunResult:
+        """Helper to create a RunResult with required fields."""
+        from arc_meshchop.experiment.runner import RunResult
+
+        return RunResult(
+            outer_fold=outer_fold,
+            restart=restart,
+            seed=42 + restart,
+            test_dice=float(sum(per_subject_dice) / len(per_subject_dice)),
+            test_avd=0.25,
+            test_mcc=0.75,
+            final_train_loss=0.1,
+            checkpoint_path="/path",
+            duration_seconds=100,
+            per_subject_dice=per_subject_dice,
+            per_subject_avd=[0.25] * len(per_subject_dice),
+            per_subject_mcc=[0.75] * len(per_subject_dice),
+            subject_indices=subject_indices,
         )
 
-        # Mean of [0.85, 0.87, 0.86] = 0.86
-        assert result.test_mean_dice == pytest.approx(0.86)
+    def _make_fold(
+        self,
+        outer_fold: int,
+        per_subject_dice: list[float],
+        subject_indices: list[int],
+    ) -> FoldResult:
+        """Helper to create a FoldResult with one best run."""
+        from arc_meshchop.experiment.runner import FoldResult
 
-    def test_returns_zero_with_no_test_results(self) -> None:
-        """Verify zero returned when no test results."""
+        # Create a single "best" run with the given per-subject scores
+        run = self._make_run(outer_fold, 0, per_subject_dice, subject_indices)
+        return FoldResult(outer_fold=outer_fold, runs=[run])
+
+    def test_returns_zero_with_no_folds(self) -> None:
+        """Verify zero returned when no folds."""
         from arc_meshchop.experiment.runner import ExperimentResult
 
         result = ExperimentResult(
             config={},
             folds=[],
-            test_results=[],
             start_time="2024-01-01T00:00:00",
             end_time="2024-01-02T00:00:00",
             total_duration_hours=24.0,
@@ -182,41 +203,15 @@ class TestExperimentResult:
         from arc_meshchop.experiment.runner import ExperimentResult
 
         # Simulate 3 outer folds with per-subject scores
+        folds = [
+            self._make_fold(0, [0.80, 0.85, 0.90], [0, 1, 2]),
+            self._make_fold(1, [0.82, 0.87, 0.92], [3, 4, 5]),
+            self._make_fold(2, [0.81, 0.86, 0.91], [6, 7, 8]),
+        ]
+
         result = ExperimentResult(
             config={},
-            folds=[],
-            test_results=[
-                {
-                    "outer_fold": 0,
-                    "test_dice": 0.85,  # Fold-level mean (for backward compat)
-                    "test_avd": 0.25,
-                    "test_mcc": 0.75,
-                    "per_subject_dice": [0.80, 0.85, 0.90],  # 3 subjects
-                    "per_subject_avd": [0.20, 0.25, 0.30],
-                    "per_subject_mcc": [0.70, 0.75, 0.80],
-                    "subject_indices": [0, 1, 2],
-                },
-                {
-                    "outer_fold": 1,
-                    "test_dice": 0.87,
-                    "test_avd": 0.24,
-                    "test_mcc": 0.76,
-                    "per_subject_dice": [0.82, 0.87, 0.92],  # 3 subjects
-                    "per_subject_avd": [0.19, 0.24, 0.29],
-                    "per_subject_mcc": [0.71, 0.76, 0.81],
-                    "subject_indices": [3, 4, 5],
-                },
-                {
-                    "outer_fold": 2,
-                    "test_dice": 0.86,
-                    "test_avd": 0.26,
-                    "test_mcc": 0.74,
-                    "per_subject_dice": [0.81, 0.86, 0.91],  # 3 subjects
-                    "per_subject_avd": [0.21, 0.26, 0.31],
-                    "per_subject_mcc": [0.69, 0.74, 0.79],
-                    "subject_indices": [6, 7, 8],
-                },
-            ],
+            folds=folds,
             start_time="2024-01-01T00:00:00",
             end_time="2024-01-02T00:00:00",
             total_duration_hours=24.0,
@@ -239,27 +234,14 @@ class TestExperimentResult:
         """Verify per-subject scores can be retrieved for Wilcoxon test."""
         from arc_meshchop.experiment.runner import ExperimentResult
 
+        folds = [
+            self._make_fold(0, [0.80, 0.85, 0.90], [0, 1, 2]),
+            self._make_fold(1, [0.82, 0.87], [3, 4]),
+        ]
+
         result = ExperimentResult(
             config={},
-            folds=[],
-            test_results=[
-                {
-                    "outer_fold": 0,
-                    "test_dice": 0.85,
-                    "per_subject_dice": [0.80, 0.85, 0.90],
-                    "per_subject_avd": [0.20, 0.25, 0.30],
-                    "per_subject_mcc": [0.70, 0.75, 0.80],
-                    "subject_indices": [0, 1, 2],
-                },
-                {
-                    "outer_fold": 1,
-                    "test_dice": 0.87,
-                    "per_subject_dice": [0.82, 0.87],
-                    "per_subject_avd": [0.19, 0.24],
-                    "per_subject_mcc": [0.71, 0.76],
-                    "subject_indices": [3, 4],
-                },
-            ],
+            folds=folds,
             start_time="2024-01-01T00:00:00",
             end_time="2024-01-02T00:00:00",
             total_duration_hours=24.0,
@@ -290,29 +272,15 @@ class TestExperimentResult:
         fold2_scores = np.clip(np.random.normal(0.87, 0.15, 75), 0, 1).tolist()
         fold3_scores = np.clip(np.random.normal(0.87, 0.15, 74), 0, 1).tolist()
 
+        folds = [
+            self._make_fold(0, fold1_scores, list(range(75))),
+            self._make_fold(1, fold2_scores, list(range(75, 150))),
+            self._make_fold(2, fold3_scores, list(range(150, 224))),
+        ]
+
         result = ExperimentResult(
             config={},
-            folds=[],
-            test_results=[
-                {
-                    "outer_fold": 0,
-                    "test_dice": float(np.mean(fold1_scores)),
-                    "per_subject_dice": fold1_scores,
-                    "subject_indices": list(range(75)),
-                },
-                {
-                    "outer_fold": 1,
-                    "test_dice": float(np.mean(fold2_scores)),
-                    "per_subject_dice": fold2_scores,
-                    "subject_indices": list(range(75, 150)),
-                },
-                {
-                    "outer_fold": 2,
-                    "test_dice": float(np.mean(fold3_scores)),
-                    "per_subject_dice": fold3_scores,
-                    "subject_indices": list(range(150, 224)),
-                },
-            ],
+            folds=folds,
             start_time="2024-01-01T00:00:00",
             end_time="2024-01-02T00:00:00",
             total_duration_hours=24.0,
@@ -340,19 +308,23 @@ class TestRunResult:
 
         run = RunResult(
             outer_fold=0,
-            inner_fold=1,
             restart=5,
             seed=47,
-            best_dice=0.876,
-            best_epoch=42,
+            test_dice=0.876,
+            test_avd=0.25,
+            test_mcc=0.76,
             final_train_loss=0.05,
             checkpoint_path="/path/to/checkpoint.pt",
             duration_seconds=3600.0,
+            per_subject_dice=[0.85, 0.87, 0.90],
+            per_subject_avd=[0.24, 0.25, 0.26],
+            per_subject_mcc=[0.75, 0.76, 0.77],
+            subject_indices=[0, 1, 2],
         )
 
         d = asdict(run)
 
         assert d["outer_fold"] == 0
-        assert d["inner_fold"] == 1
         assert d["restart"] == 5
-        assert d["best_dice"] == 0.876
+        assert d["test_dice"] == 0.876
+        assert len(d["per_subject_dice"]) == 3

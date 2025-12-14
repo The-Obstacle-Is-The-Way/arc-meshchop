@@ -12,9 +12,16 @@ class ExperimentConfig:
     """Configuration for full experiment.
 
     FROM PAPER Section 2:
-    - 3 outer folds x 3 inner folds x 10 restarts = 90 runs
-    - MeshNet-26 with 147,474 parameters
-    - Target: 0.876 DICE
+    "Hyperparameter optimization was conducted on the inner folds of the first
+    outer fold. The optimized hyperparameters were then applied to train models
+    on all outer folds."
+
+    This means:
+    - HP search: Only on Outer Fold 1 (we skip this, using paper's final HPs)
+    - Final evaluation: 3 outer folds x 10 restarts = 30 runs
+    - Training data: Full outer-train (67% of total), not inner-train (44%)
+
+    See NESTED-CV-PROTOCOL.md for full analysis.
     """
 
     # Data
@@ -27,10 +34,11 @@ class ExperimentConfig:
 
     # Cross-validation structure (FROM PAPER)
     num_outer_folds: int = 3
-    num_inner_folds: int = 3
     num_restarts: int = 10
+    # num_inner_folds is NOT used for replication - inner folds were only for HP search
+    # which was done only on the first outer fold. We use the paper's final HPs.
 
-    # Training hyperparameters (FROM PAPER)
+    # Training hyperparameters (FROM PAPER - these are the optimized values)
     epochs: int = 50
     learning_rate: float = 0.001
     weight_decay: float = 3e-5
@@ -61,8 +69,12 @@ class ExperimentConfig:
 
     @property
     def total_runs(self) -> int:
-        """Total number of training runs."""
-        return self.num_outer_folds * self.num_inner_folds * self.num_restarts
+        """Total number of training runs.
+
+        Paper protocol: 3 outer folds x 10 restarts = 30 runs.
+        We train on FULL outer-train (no inner fold split).
+        """
+        return self.num_outer_folds * self.num_restarts
 
     def get_restart_seed(self, restart: int) -> int:
         """Get seed for specific restart."""

@@ -132,18 +132,23 @@ class Trainer:
     def train(
         self,
         train_loader: DataLoader,
-        val_loader: DataLoader,
+        val_loader: DataLoader | None = None,
         metrics_calculator: SegmentationMetrics | None = None,
     ) -> dict[str, float]:
         """Train the model.
 
         Args:
             train_loader: Training data loader.
-            val_loader: Validation data loader.
+            val_loader: Validation data loader (optional, for fixed-epoch training).
             metrics_calculator: Optional metrics calculator for validation.
 
         Returns:
             Dictionary with final metrics.
+
+        Note:
+            When val_loader is None, training runs for fixed epochs without
+            validation. This matches the paper protocol where hyperparameters
+            are already known and we train on full outer-train data.
         """
         # Create scheduler with total steps
         # NOTE: div_factor=100 is critical for paper parity
@@ -170,12 +175,14 @@ class Trainer:
         # re-ran epoch 0 and could crash OneCycleLR by stepping past total_steps).
         start_epoch = self.state.epoch + 1 if self.state.global_step > 0 else 0
 
+        mode = "with validation" if val_loader else "fixed epochs (no validation)"
         logger.info(
-            "Starting training: %d epochs (from %d), %d steps/epoch, %d total steps",
+            "Starting training: %d epochs (from %d), %d steps/epoch, %d total steps, %s",
             self.config.epochs,
             start_epoch,
             len(train_loader),
             total_steps,
+            mode,
         )
 
         train_loss = 0.0
@@ -186,24 +193,33 @@ class Trainer:
             # Training epoch
             train_loss = self._train_epoch(train_loader)
 
-            # Validation epoch
-            val_metrics = self._validate_epoch(val_loader, metrics_calculator)
-            val_dice = val_metrics.get("dice", 0.0)
+            if val_loader is not None:
+                # Validation epoch (when val_loader provided)
+                val_metrics = self._validate_epoch(val_loader, metrics_calculator)
+                val_dice = val_metrics.get("dice", 0.0)
 
-            logger.info(
-                "Epoch %d/%d - Train Loss: %.4f, Val DICE: %.4f",
-                epoch + 1,
-                self.config.epochs,
-                train_loss,
-                val_dice,
-            )
+                logger.info(
+                    "Epoch %d/%d - Train Loss: %.4f, Val DICE: %.4f",
+                    epoch + 1,
+                    self.config.epochs,
+                    train_loss,
+                    val_dice,
+                )
 
-            # Check for best model
-            if val_dice > self.state.best_dice:
-                self.state.best_dice = val_dice
-                self.state.best_epoch = epoch
-                if self.config.save_best_only:
-                    self._save_checkpoint("best")
+                # Check for best model
+                if val_dice > self.state.best_dice:
+                    self.state.best_dice = val_dice
+                    self.state.best_epoch = epoch
+                    if self.config.save_best_only:
+                        self._save_checkpoint("best")
+            else:
+                # Fixed-epoch training (paper protocol: train on full outer-train)
+                logger.info(
+                    "Epoch %d/%d - Train Loss: %.4f",
+                    epoch + 1,
+                    self.config.epochs,
+                    train_loss,
+                )
 
             # Periodic checkpoint
             if (
