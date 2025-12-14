@@ -2,37 +2,43 @@
 
 > **Purpose:** Single source of truth for all blocking issues that must be fixed before training locally.
 >
-> **Status:** FIXED — All blockers resolved (2025-12-12).
+> **Status:** ✅ ALL BLOCKERS RESOLVED — Ready to train
 >
 > **Created:** 2025-12-12
 >
-> **Last Validated:** Each claim verified against actual code and paper.
+> **Last Updated:** 2025-12-14
 
 ---
 
 ## Executive Summary
 
-The core pipeline is implemented and largely paper-aligned:
+The core pipeline is implemented and ready to train:
+
 - ✅ MeshNet architecture matches paper (10-layer, symmetric dilation)
 - ✅ Training config matches paper (AdamW, OneCycleLR div_factor=100, etc.)
-- ✅ Nested CV with stratification implemented
+- ✅ Outer CV with stratification implemented (30 runs: 3 folds × 10 restarts)
 - ✅ Paper parity validation infrastructure in place
 - ✅ bids_hub integration correct (only imports validation constants)
+- ✅ Per-subject metric aggregation (BUG-002 fixed)
+- ✅ Restart aggregation modes (BUG-003 fixed)
 
-**All 5 blocking issues have been fixed:**
+**All 5 original blocking issues have been fixed:**
 
-| # | Issue | Severity | Impact | Status |
-|---|-------|----------|--------|--------|
-| 1 | Memory OOM on evaluation | **CRITICAL** | Will crash on typical 16GB machines | **FIXED** |
-| 2 | Docs say `--checkpoint`, CLI uses positional | MEDIUM | User confusion, broken examples | **FIXED** |
-| 3 | Docs say global HF cache, CLI uses project-local | MEDIUM | User confusion about data location | **FIXED** |
-| 4 | Gradient checkpointing flag exists but does nothing | LOW | Misleading config option | **FIXED** |
-| 5 | HPO uses MedianPruner, docs/config say ASHA | LOW | Incorrect terminology | **FIXED** |
+| # | Issue | Severity | Status |
+|---|-------|----------|--------|
+| 1 | Memory OOM on evaluation | **CRITICAL** | ✅ FIXED |
+| 2 | Docs say `--checkpoint`, CLI uses positional | MEDIUM | ✅ FIXED |
+| 3 | Docs say global HF cache, CLI uses project-local | MEDIUM | ✅ FIXED |
+| 4 | Gradient checkpointing flag exists but does nothing | LOW | ✅ FIXED |
+| 5 | HPO uses MedianPruner, docs/config say ASHA | LOW | ✅ FIXED |
 
-**Quality risks fixed:**
-- ✅ Experiment runner now caches preprocessed data (faster runtime)
-- ✅ Temp file leaks fixed
-- ✅ Silent error swallowing fixed
+**Additional bug fixes applied:**
+- ✅ BUG-001: Mask binarization, RAS+ orientation, resume, security (6/7 fixed)
+- ✅ BUG-002: Per-subject metric aggregation
+- ✅ BUG-003: Restart aggregation, cache explosion, checkpoint overwrite
+- ✅ NESTED-CV-PROTOCOL: Correct 30-run protocol (was incorrectly 90)
+
+See `docs/bugs/` for detailed tracking of all issues.
 
 ---
 
