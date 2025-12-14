@@ -1,14 +1,16 @@
 """Cross-validation split generation with stratification.
 
-Implements nested 3-fold cross-validation from the paper:
-- 3 outer folds (train/test)
-- 3 inner folds per outer (train/val)
-- Stratified by lesion size quintile and acquisition type
-
 FROM PAPER (Section 2):
-"We employed nested cross-validation for model selection and evaluation, with
-3 outer folds and 3 inner folds, stratified by lesion size quintiles and
-acquisition type."
+"Hyperparameter optimization was conducted on the inner folds of the first
+outer fold. The optimized hyperparameters were then applied to train models
+on all outer folds."
+
+This means:
+- 3 outer folds for train/test
+- Inner folds were only used for HP search (first outer fold)
+- For replication with known HPs, we use outer folds only
+
+See NESTED-CV-PROTOCOL.md for full analysis.
 """
 
 from __future__ import annotations
@@ -266,5 +268,115 @@ def generate_nested_cv_splits(
         random_seed=random_seed,
         num_outer_folds=num_outer_folds,
         num_inner_folds=num_inner_folds,
+        stratification_labels=stratification_labels,
+    )
+
+
+# ============================================================================
+# Outer-only CV (for replication with known hyperparameters)
+# ============================================================================
+
+
+@dataclass
+class OuterSplit:
+    """Single outer fold split (train/test only, no validation).
+
+    Used for final evaluation when hyperparameters are already known.
+
+    Attributes:
+        train_indices: Indices for training set (full outer-train).
+        test_indices: Indices for test set.
+    """
+
+    train_indices: list[int]
+    test_indices: list[int]
+
+
+@dataclass
+class OuterCVSplits:
+    """Outer-only cross-validation structure.
+
+    Used for paper replication where we use the published hyperparameters
+    and train on FULL outer-train data (no inner fold holdout).
+
+    Attributes:
+        splits: List of OuterSplit objects (one per fold).
+        random_seed: Random seed used for reproducibility.
+        num_folds: Number of folds.
+        stratification_labels: Combined stratification labels.
+    """
+
+    splits: list[OuterSplit]
+    random_seed: int
+    num_folds: int
+    stratification_labels: list[str]
+
+    def get_split(self, fold: int) -> OuterSplit:
+        """Get a specific outer fold split.
+
+        Args:
+            fold: Fold index (0 to num_folds-1).
+
+        Returns:
+            OuterSplit with train and test indices.
+        """
+        return self.splits[fold]
+
+
+def generate_outer_cv_splits(
+    n_samples: int,
+    stratification_labels: list[str],
+    num_folds: int = 3,
+    random_seed: int = 42,
+) -> OuterCVSplits:
+    """Generate outer-only CV splits for paper replication.
+
+    When hyperparameters are already known (from the paper), we don't need
+    inner folds for HP search. This generates simple train/test splits.
+
+    FROM PAPER:
+    "The optimized hyperparameters were then applied to train models on all
+    outer folds."
+
+    Args:
+        n_samples: Total number of samples.
+        stratification_labels: Combined stratification labels.
+        num_folds: Number of outer folds (default 3).
+        random_seed: Random seed for reproducibility.
+
+    Returns:
+        OuterCVSplits object with train/test splits per fold.
+
+    Raises:
+        ValueError: If stratification_labels length doesn't match n_samples.
+    """
+    if len(stratification_labels) != n_samples:
+        raise ValueError(
+            f"stratification_labels length ({len(stratification_labels)}) "
+            f"must match n_samples ({n_samples})"
+        )
+
+    indices = np.arange(n_samples)
+    labels = np.array(stratification_labels)
+
+    splitter = StratifiedKFold(
+        n_splits=num_folds,
+        shuffle=True,
+        random_state=random_seed,
+    )
+
+    splits: list[OuterSplit] = []
+    for train_idx, test_idx in splitter.split(indices, labels):
+        splits.append(
+            OuterSplit(
+                train_indices=indices[train_idx].tolist(),
+                test_indices=indices[test_idx].tolist(),
+            )
+        )
+
+    return OuterCVSplits(
+        splits=splits,
+        random_seed=random_seed,
+        num_folds=num_folds,
         stratification_labels=stratification_labels,
     )

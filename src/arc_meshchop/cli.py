@@ -139,10 +139,14 @@ def download(
         output_dir.mkdir(parents=True, exist_ok=True)
         info_path = output_dir / "dataset_info.json"
 
+        # Write aligned lists - mask_paths must align 1:1 with image_paths
+        # (BUG-001: arc_info.mask_paths filters out None, causing misalignment)
+        mask_paths_aligned = [str(s.mask_path) if s.mask_path else None for s in arc_info.samples]
+
         dataset_info = {
             "num_samples": len(arc_info),
             "image_paths": [str(p) for p in arc_info.image_paths],
-            "mask_paths": [str(p) for p in arc_info.mask_paths],
+            "mask_paths": mask_paths_aligned,
             "lesion_volumes": arc_info.lesion_volumes,
             "acquisition_types": arc_info.acquisition_types,
             "subject_ids": arc_info.subject_ids,
@@ -231,7 +235,8 @@ def train(
     """Train MeshNet on ARC dataset.
 
     Trains a single model configuration on specified CV folds.
-    Use arc-meshchop experiment to run full nested CV.
+    Note: `arc-meshchop experiment` runs the paper replication protocol
+    (3 outer folds x N restarts) using full outer-train per fold.
 
     FROM PAPER:
     - AdamW optimizer (lr=0.001, weight_decay=3e-5, eps=1e-4)
@@ -268,9 +273,20 @@ def train(
         dataset_info = json.load(f)
 
     image_paths = [Path(p) for p in dataset_info["image_paths"]]
-    mask_paths = [Path(p) for p in dataset_info["mask_paths"]]
+    # Handle None values in mask_paths (BUG-001 fix: aligned lists may have None)
+    mask_paths_raw = [Path(p) if p else None for p in dataset_info["mask_paths"]]
     lesion_volumes = dataset_info["lesion_volumes"]
     acquisition_types = dataset_info["acquisition_types"]
+
+    # Verify all samples have masks for training (training requires masks)
+    none_mask_count = sum(1 for m in mask_paths_raw if m is None)
+    if none_mask_count > 0:
+        err_console.print(f"[red]Error: {none_mask_count} samples missing lesion masks.[/red]")
+        err_console.print("Training requires lesion masks. Re-run download with --require-mask.")
+        raise typer.Exit(1)
+
+    # Safe to cast after validation (no None values)
+    mask_paths: list[Path] = cast(list[Path], mask_paths_raw)
 
     console.print(f"Loaded {len(image_paths)} samples from {info_path}")
 
@@ -419,7 +435,8 @@ def evaluate(
         dataset_info = json.load(f)
 
     image_paths = [Path(p) for p in dataset_info["image_paths"]]
-    mask_paths = [Path(p) for p in dataset_info["mask_paths"]]
+    # Handle None values in mask_paths (BUG-001 fix: --no-require-mask may have None entries)
+    mask_paths_raw = [Path(p) if p else None for p in dataset_info["mask_paths"]]
     lesion_volumes = dataset_info["lesion_volumes"]
     acquisition_types = dataset_info["acquisition_types"]
 
@@ -439,12 +456,26 @@ def evaluate(
     split = splits.get_split(outer_fold, inner_fold=None)
     test_indices = split.test_indices
 
+    # Validate all test samples have masks (evaluation requires ground truth)
+    test_mask_paths = [mask_paths_raw[i] for i in test_indices]
+    missing_masks = [i for i, m in zip(test_indices, test_mask_paths, strict=True) if m is None]
+    if missing_masks:
+        err_console.print(
+            f"[red]Error: {len(missing_masks)} test samples have no ground truth masks.[/red]\n"
+            f"[yellow]Evaluation requires masks. Re-download with 'arc-meshchop download' "
+            f"(default requires masks).[/yellow]"
+        )
+        raise typer.Exit(1)
+
+    # Cast to non-None list (validated above)
+    mask_paths: list[Path] = cast(list[Path], test_mask_paths)
+
     console.print(f"Evaluating on {len(test_indices)} test samples (outer fold {outer_fold})")
 
     # Create test dataset
     test_dataset = ARCDataset(
         image_paths=[image_paths[i] for i in test_indices],
-        mask_paths=[mask_paths[i] for i in test_indices],
+        mask_paths=mask_paths,
     )
 
     # Load model
@@ -559,10 +590,10 @@ def experiment(
         typer.Option("--skip-completed/--no-skip", help="Skip completed runs"),
     ] = True,
 ) -> None:
-    """Run full nested CV experiment.
+    """Run paper replication experiment (outer-fold evaluation + restarts).
 
-    Runs all 90 configurations (3 outer x 3 inner x 10 restarts)
-    and produces paper-comparable results.
+    Runs 3 outer folds x N restarts (default 30 runs) and produces
+    paper-comparable results. Training uses full outer-train data per fold.
 
     Hyperparameters can be overridden (e.g., from HPO results).
 

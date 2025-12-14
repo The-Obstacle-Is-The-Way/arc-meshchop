@@ -123,25 +123,40 @@ class Trainer:
         # Scheduler will be created in train() when we know total_steps
         self.scheduler: torch.optim.lr_scheduler.OneCycleLR | None = None
 
+        # Pending scheduler state for resume (applied after scheduler creation)
+        self._pending_scheduler_state: dict | None = None
+
         # Create checkpoint directory
         config.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     def train(
         self,
         train_loader: DataLoader,
-        val_loader: DataLoader,
+        val_loader: DataLoader | None = None,
         metrics_calculator: SegmentationMetrics | None = None,
     ) -> dict[str, float]:
         """Train the model.
 
         Args:
             train_loader: Training data loader.
-            val_loader: Validation data loader.
+            val_loader: Validation data loader (optional, for fixed-epoch training).
             metrics_calculator: Optional metrics calculator for validation.
 
         Returns:
             Dictionary with final metrics.
+
+        Note:
+            When val_loader is None, training runs for fixed epochs without
+            validation. This matches the paper protocol where hyperparameters
+            are already known and we train on full outer-train data.
+
+        Raises:
+            ValueError: If train_loader is empty.
         """
+        # Guard against empty loaders (prevents div-by-zero and OneCycleLR errors)
+        if len(train_loader) == 0:
+            raise ValueError("train_loader must have at least one batch")
+
         # Create scheduler with total steps
         # NOTE: div_factor=100 is critical for paper parity
         # FROM PAPER: "starts at 1/100th of the max learning rate"
@@ -154,39 +169,64 @@ class Trainer:
             div_factor=self.config.div_factor,
         )
 
+        # Apply pending scheduler state from checkpoint (BUG-001 fix)
+        if self._pending_scheduler_state is not None:
+            self.scheduler.load_state_dict(self._pending_scheduler_state)
+            self._pending_scheduler_state = None
+            logger.info("Restored scheduler state from checkpoint")
+
+        # Determine starting epoch (support resume)
+        # NOTE: We only checkpoint at epoch boundaries. If we've already taken any
+        # optimizer steps, assume the checkpoint represents a completed epoch and
+        # continue from the next epoch (BUG-001: resuming from epoch 0 previously
+        # re-ran epoch 0 and could crash OneCycleLR by stepping past total_steps).
+        start_epoch = self.state.epoch + 1 if self.state.global_step > 0 else 0
+
+        mode = "with validation" if val_loader else "fixed epochs (no validation)"
         logger.info(
-            "Starting training: %d epochs, %d steps/epoch, %d total steps",
+            "Starting training: %d epochs (from %d), %d steps/epoch, %d total steps, %s",
             self.config.epochs,
+            start_epoch,
             len(train_loader),
             total_steps,
+            mode,
         )
 
         train_loss = 0.0
 
-        for epoch in range(self.config.epochs):
+        for epoch in range(start_epoch, self.config.epochs):
             self.state.epoch = epoch
 
             # Training epoch
             train_loss = self._train_epoch(train_loader)
 
-            # Validation epoch
-            val_metrics = self._validate_epoch(val_loader, metrics_calculator)
-            val_dice = val_metrics.get("dice", 0.0)
+            if val_loader is not None:
+                # Validation epoch (when val_loader provided)
+                val_metrics = self._validate_epoch(val_loader, metrics_calculator)
+                val_dice = val_metrics.get("dice", 0.0)
 
-            logger.info(
-                "Epoch %d/%d - Train Loss: %.4f, Val DICE: %.4f",
-                epoch + 1,
-                self.config.epochs,
-                train_loss,
-                val_dice,
-            )
+                logger.info(
+                    "Epoch %d/%d - Train Loss: %.4f, Val DICE: %.4f",
+                    epoch + 1,
+                    self.config.epochs,
+                    train_loss,
+                    val_dice,
+                )
 
-            # Check for best model
-            if val_dice > self.state.best_dice:
-                self.state.best_dice = val_dice
-                self.state.best_epoch = epoch
-                if self.config.save_best_only:
-                    self._save_checkpoint("best")
+                # Check for best model
+                if val_dice > self.state.best_dice:
+                    self.state.best_dice = val_dice
+                    self.state.best_epoch = epoch
+                    if self.config.save_best_only:
+                        self._save_checkpoint("best")
+            else:
+                # Fixed-epoch training (paper protocol: train on full outer-train)
+                logger.info(
+                    "Epoch %d/%d - Train Loss: %.4f",
+                    epoch + 1,
+                    self.config.epochs,
+                    train_loss,
+                )
 
             # Periodic checkpoint
             if (
@@ -225,11 +265,15 @@ class Trainer:
             # Forward pass with platform-aware mixed precision
             self.optimizer.zero_grad()
 
-            with autocast(
-                device_type=self.device.type,
-                dtype=self._amp_dtype,
-                enabled=self._amp_enabled,
-            ):
+            if self._amp_enabled:
+                with autocast(
+                    device_type=self.device.type,
+                    dtype=self._amp_dtype,
+                    enabled=True,
+                ):
+                    outputs = self.model(images)
+                    loss = self.loss_fn(outputs, masks)
+            else:
                 outputs = self.model(images)
                 loss = self.loss_fn(outputs, masks)
 
@@ -284,11 +328,15 @@ class Trainer:
             images = images.to(self.device)
             masks = masks.to(self.device)
 
-            with autocast(
-                device_type=self.device.type,
-                dtype=self._amp_dtype,
-                enabled=self._amp_enabled,
-            ):
+            if self._amp_enabled:
+                with autocast(
+                    device_type=self.device.type,
+                    dtype=self._amp_dtype,
+                    enabled=True,
+                ):
+                    outputs = self.model(images)
+                    loss = self.loss_fn(outputs, masks)
+            else:
                 outputs = self.model(images)
                 loss = self.loss_fn(outputs, masks)
 
@@ -387,16 +435,27 @@ class Trainer:
     def load_checkpoint(self, path: Path | str) -> None:
         """Load model checkpoint.
 
+        Restores model, optimizer, scaler, and training state.
+        Scheduler state is stored as pending and applied after scheduler
+        creation in train() (BUG-001 fix for resume functionality).
+
         Args:
             path: Path to checkpoint file.
         """
-        checkpoint = torch.load(path, map_location=self.device, weights_only=False)
+        # Use weights_only=True for security (BUG-001: P2 fix)
+        checkpoint = torch.load(path, map_location=self.device, weights_only=True)
 
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-        if "scheduler_state_dict" in checkpoint and self.scheduler is not None:
-            self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+        # Store scheduler state as pending (scheduler created in train())
+        if "scheduler_state_dict" in checkpoint:
+            if self.scheduler is not None:
+                self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+            else:
+                # Store for later application in train()
+                self._pending_scheduler_state = checkpoint["scheduler_state_dict"]
+
         if "scaler_state_dict" in checkpoint:
             self.scaler.load_state_dict(checkpoint["scaler_state_dict"])
 
@@ -409,7 +468,7 @@ class Trainer:
                 global_step=state["global_step"],
             )
 
-        logger.info("Loaded checkpoint: %s", path)
+        logger.info("Loaded checkpoint: %s (epoch %d)", path, self.state.epoch)
 
     def train_epoch(self, train_loader: DataLoader) -> dict[str, float]:
         """Run single training epoch (public API for HPO).

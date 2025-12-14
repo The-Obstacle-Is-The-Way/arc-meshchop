@@ -70,8 +70,8 @@
 │                                    │                                      │
 │                                    ▼                                      │
 │  ┌─────────────────────────────────────────────────────────────────────┐  │
-│  │  Nested Cross-Validation (splits.py)                                │  │
-│  │  • 3 outer folds × 3 inner folds = 9 configurations                 │  │
+│  │  Cross-Validation (splits.py)                                        │  │
+│  │  • 3 outer folds × 10 restarts = 30 runs (paper protocol)           │  │
 │  │  • Stratified by: lesion size quartile + acquisition type           │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
 │                                    │                                      │
