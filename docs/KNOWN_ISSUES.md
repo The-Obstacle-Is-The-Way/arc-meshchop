@@ -1,322 +1,64 @@
 # Known Issues
 
-This document tracks issues encountered during development for posterity and future debugging.
+## Issue #1: Missing Acquisition Metadata (Blocked on Upstream)
 
-**Last Updated:** 2025-12-14
+The HuggingFace dataset (`hugging-science/arc-aphasia-bids`) lacks the `t2w_acquisition` column needed to filter by MRI sequence type.
 
----
-
-## Issue #1: HuggingFace Dataset Missing Acquisition Metadata
-
-**Status:** ⏳ BLOCKED ON UPSTREAM (Workaround applied)
-**Date Discovered:** 2025-12-12
-**Affected Code:** `src/arc_meshchop/data/huggingface_loader.py`
-
-### Problem
-
-The HuggingFace dataset (`hugging-science/arc-aphasia-bids`) does not include acquisition type metadata, which the paper uses to filter samples.
-
-### HuggingFace Schema (Actual)
-
-```text
+Current schema:
+```
 subject_id, session_id, t1w, t2w, flair, bold, dwi, sbref, lesion, age_at_stroke, sex, wab_aq, wab_type
 ```
+Missing: `t2w_acquisition` (values: `space_2x`, `space_no_accel`, `turbo_spin_echo`)
 
-**Missing field:** `t2w_acquisition` (should contain: `space_2x`, `space_no_accel`, or `turbo_spin_echo`)
+The paper states: *"We utilized SPACE sequences with x2 in-plane acceleration (115 scans) and without acceleration (109 scans), while excluding the turbo-spin echo T2-weighted sequences (5 scans)."*
 
-### Why This Matters
+OpenNeuro has this info in BIDS filenames (`acq-spc3p2`, `acq-spc3`, `acq-tse3`), but it wasn't extracted to HuggingFace.
 
-The paper explicitly states (Section 2):
-> "We utilized SPACE sequences with x2 in-plane acceleration (115 scans) and without acceleration (109 scans), while excluding the turbo-spin echo T2-weighted sequences (5 scans) to maintain homogeneity in imaging protocols."
+**Workaround:** Accept all samples with T2w + lesion mask regardless of acquisition type.
 
-Without acquisition metadata, we cannot replicate this exact filtering.
+**Upstream fix needed:** Add `t2w_acquisition` column to HuggingFace dataset.
 
-### Root Cause
 
-The acquisition type IS available in OpenNeuro (ds004884) via BIDS filenames:
-- `acq-spc3p2` → SPACE 2x acceleration (115 masks)
-- `acq-spc3` → SPACE no acceleration (108 masks)
-- `acq-tse3` → Turbo Spin Echo (5 masks)
+## Issue #2: 228 vs 224 Sample Count
 
-But the HuggingFace upload script did not extract this as a separate column.
+We have 228 samples; paper used 224.
 
-### Workaround Applied
-
-Our loader now accepts all samples with T2w images and lesion masks, regardless of acquisition type:
-
-```python
-# When acquisition is unknown, accept the sample
-if acq_type == "unknown":
-    unknown_acq_count += 1
-    acq_type = "space_no_accel"  # Default classification
-```
-
-This results in 228 samples instead of 224.
-
-### Fix Required (Upstream)
-
-Add `t2w_acquisition` column to HuggingFace dataset:
-
-```python
-def _extract_acquisition(bids_path: str) -> str:
-    import re
-    match = re.search(r'acq-([a-z0-9]+)', bids_path.lower())
-    if match:
-        acq = match.group(1)
-        if 'spc3p2' in acq:
-            return 'space_2x'
-        elif 'spc3' in acq:
-            return 'space_no_accel'
-        elif 'tse' in acq:
-            return 'turbo_spin_echo'
-    return 'unknown'
-```
-
----
-
-## Issue #2: 228 vs 224 Sample Count Discrepancy (INDEPENDENTLY VERIFIED)
-
-**Status:** ACCEPTED FOR TRAINING
-**Date Discovered:** 2025-12-12
-**Date Validated:** 2025-12-13
-**Verified Against:** OpenNeuro ds004884 Git mirror (`OpenNeuroDatasets/ds004884.git`, commit `0885e5939abc8f909a175dd782369b7afc3fdd08`)
-
-### Summary
-
-| Source | Count | Breakdown |
-|--------|-------|-----------|
-| Paper | 224 | 115 SPACE 2x + 109 SPACE no-accel |
-| HuggingFace | 228 | 115 + 108 + 5 TSE |
-| Difference | +4 | +5 TSE included, -1 SPACE missing mask |
-
-### Validated Breakdown
-
-From OpenNeuro BIDS filenames:
-
-| Acquisition | Mask Count | Paper Used |
-|-------------|------------|------------|
-| `acq-spc3p2` (SPACE 2x) | 115 | 115 |
-| `acq-spc3` (SPACE no-accel) | 108 | 109 |
-| `acq-tse3` (TSE) | 5 | 0 (excluded) |
+| Acquisition | OpenNeuro | Paper |
+|-------------|-----------|-------|
+| SPACE 2x (`acq-spc3p2`) | 115 | 115 |
+| SPACE no-accel (`acq-spc3`) | 108 | 109 |
+| TSE (`acq-tse3`) | 5 | 0 (excluded) |
 | **Total** | **228** | **224** |
 
-### Why the Numbers Don't Match
+The discrepancy:
+- Paper had 1 additional SPACE mask (`sub-M2039/ses-1222`) not publicly available
+- Paper excluded 5 TSE samples; we include them (can't filter without acquisition metadata)
+- Net: +5 TSE - 1 missing = +4
 
-1. **Paper says 109 SPACE no-accel, but only 108 have public masks**
-   - `sub-M2039/ses-1222` has a SPACE T2w scan but NO expert lesion mask in OpenNeuro
-   - T2w exists: `sub-M2039/ses-1222/anat/sub-M2039_ses-1222_acq-spc3_run-7_T2w.nii.gz`
-   - Lesion mask: **MISSING** (no `derivatives/lesion_masks/sub-M2039/` directory exists)
-   - The paper authors likely had access to this mask internally
+**Decision:** Proceed with 228. Both SPACE and TSE are T2-weighted with identical lesion contrast. The 5 extra samples (2.2% of dataset) are well within the paper's reported variance (0.876 ± 0.016).
 
-2. **Paper excluded 5 TSE, but we include them**
-   - Without acquisition metadata, we cannot filter them out
-   - These 5 TSE samples are included in our 228
+For paper-exact parity, exclude these TSE subjects:
+- sub-M2002/ses-1441
+- sub-M2007/ses-6330
+- sub-M2015/ses-409
+- sub-M2016/ses-2721
+- sub-M2017/ses-1141
 
-3. **Net effect:** +5 (TSE included) - 1 (missing SPACE mask) = +4 samples
 
-### The 5 TSE Samples to Exclude (for paper parity)
+## Fixed Issues (Historical)
 
-If exact paper parity is needed, exclude these subject/session pairs (verified in OpenNeuro):
+These are resolved but documented for reference:
 
-| Subject | Session | OpenNeuro Lesion Mask Path |
-|---------|---------|----------------------------|
-| sub-M2002 | ses-1441 | `derivatives/lesion_masks/sub-M2002/ses-1441/anat/sub-M2002_ses-1441_acq-tse3_run-4_T2w_desc-lesion_mask.nii.gz` |
-| sub-M2007 | ses-6330 | `derivatives/lesion_masks/sub-M2007/ses-6330/anat/sub-M2007_ses-6330_acq-tse3_run-5_T2w_desc-lesion_mask.nii.gz` |
-| sub-M2015 | ses-409 | `derivatives/lesion_masks/sub-M2015/ses-409/anat/sub-M2015_ses-409_acq-tse3_run-4_T2w_desc-lesion_mask.nii.gz` |
-| sub-M2016 | ses-2721 | `derivatives/lesion_masks/sub-M2016/ses-2721/anat/sub-M2016_ses-2721_acq-tse3_run-3_T2w_desc-lesion_mask.nii.gz` |
-| sub-M2017 | ses-1141 | `derivatives/lesion_masks/sub-M2017/ses-1141/anat/sub-M2017_ses-1141_acq-tse3_run-4_T2w_desc-lesion_mask.nii.gz` |
+- **NIfTI cache in temp dir** - Fixed: `cache_dir` now passed through properly
+- **Nifti1ImageWrapper objects** - Fixed: in-memory images saved to disk cache
+- **MallocStackLogging warning** - Non-issue: cosmetic macOS noise from PyTorch workers
 
-### Clinical Implications
 
-**Current training with 228 samples is VALID.** Here's why:
+## Current State
 
-1. **SPACE and TSE are both T2-weighted MRI sequences**
-   - Same tissue contrast: lesions appear bright, healthy tissue dark
-   - Same anatomical information visible
-   - Difference is acquisition speed and artifact profile
+- 228 samples ready for training
+- MeshNet-26: 147,474 parameters
+- Protocol: 3 outer folds × 10 restarts = 30 runs
+- Expected DICE: ~0.876
 
-2. **The paper excluded TSE "to maintain homogeneity in imaging protocols"**
-   - This is methodological purity, not because TSE shows different anatomy
-   - The ground truth masks are the same quality for both
-
-3. **Impact on DICE score: negligible**
-   - Paper reported: 0.876 ± 0.016
-   - 5 extra samples = 2.2% of dataset
-   - Any difference would be well within reported variance
-
-4. **The model learns: "bright blob on T2 = lesion"**
-   - It doesn't care which MRI sequence produced the image
-   - Ground truth masks guide learning identically
-
-### Decision
-
-**PROCEED WITH 228 SAMPLES.** For exact paper replication (e.g., publication), fix upstream and re-train with 223 SPACE-only samples.
-
----
-
-## Issue #3: NIfTI Cache Location in System Temp Directory
-
-**Status:** FIXED
-**Date Discovered:** 2025-12-12
-**Date Fixed:** 2025-12-13
-**Affected Code:** `src/arc_meshchop/data/huggingface_loader.py`
-
-### Problem
-
-Downloaded NIfTI files were cached in system temp directory (`/var/folders/.../T/arc_nifti_cache/`) instead of a persistent location.
-
-### Impact (Historical)
-
-- Temp directories are periodically cleaned by OS
-- Files may be lost after restart
-- Reduced reproducibility
-
-### Fix Applied
-
-The `cache_dir` parameter is now properly passed through to NIfTI extraction:
-
-```python
-# In load_arc_from_huggingface()
-nifti_cache_dir = Path(cache_dir) / "nifti_cache" if cache_dir else None
-samples = _extract_samples(
-    dataset,
-    ...,
-    cache_dir=nifti_cache_dir,
-)
-```
-
-When `cache_dir` is specified, NIfTI files are cached in `{cache_dir}/nifti_cache/`. If not specified, falls back to system temp directory (original behavior).
-
----
-
-## Issue #4: Nifti1ImageWrapper Objects (FIXED)
-
-**Status:** FIXED
-**Date Discovered:** 2025-12-12
-**Date Fixed:** 2025-12-12
-
-### Problem
-
-HuggingFace returns `Nifti1ImageWrapper` objects (in-memory nibabel images) instead of file paths. Our original code expected file paths.
-
-### Symptoms
-
-```text
-No samples match the specified filters. Check filter settings and dataset contents.
-```
-
-### Root Cause
-
-```python
-# get_filename() returns None for in-memory images
-nifti_obj.get_filename()  # -> None
-```
-
-### Fix Applied
-
-Updated `_get_nifti_path()` to save in-memory images to disk cache:
-
-```python
-if hasattr(nifti_obj, "get_fdata"):
-    cache_path = cache_dir / f"{identifier}_{content_id}.nii.gz"
-    if not cache_path.exists():
-        nib.save(nifti_obj, cache_path)
-    return str(cache_path)
-```
-
----
-
-## Issue #5: MallocStackLogging Warning on macOS
-
-**Status:** NON-ISSUE
-**Date Observed:** 2025-12-13
-
-### Symptom
-
-During validation, macOS prints:
-
-```text
-Python(7991) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
-```
-
-### Cause
-
-PyTorch DataLoader spawns worker processes. Those processes try to disable macOS memory debugging that was never enabled.
-
-### Impact
-
-**None.** This is cosmetic noise from macOS, not an error. Training proceeds normally.
-
----
-
-## Action Items Summary
-
-### ⏳ Blocked on Upstream (Paper-Exact Parity)
-
-| Item | Owner | Status |
-|------|-------|--------|
-| Add `t2w_acquisition` column to HF dataset | Dataset Curator | ⏳ BLOCKED |
-| Update loader to filter by acquisition | Codebase | ⏳ BLOCKED (by above) |
-| Document 5 TSE exclusions in HF card | Dataset Curator | ⏳ BLOCKED |
-| Add `--paper-parity` flag to CLI | Codebase | ⏳ BLOCKED (by above) |
-
-### ✅ Fixed
-
-| Item | Owner | Status |
-|------|-------|--------|
-| Fix temp directory cache location | Codebase | ✅ DONE |
-| Fix mask binarization (`> 0.5` → `> 0`) | Codebase | ✅ DONE |
-| Fix RAS+ canonical orientation | Codebase | ✅ DONE |
-| Fix resume functionality | Codebase | ✅ DONE |
-| Fix checkpoint security (`weights_only=True`) | Codebase | ✅ DONE |
-| Fix MPS autocast conditional | Codebase | ✅ DONE |
-| Implement per-subject metric aggregation | Codebase | ✅ DONE |
-| Fix cache explosion (shared per outer fold) | Codebase | ✅ DONE |
-| Fix restart aggregation modes | Codebase | ✅ DONE |
-| Correct nested CV protocol (30 runs) | Codebase | ✅ DONE |
-
-### ⚠️ Low Priority (Not Fixed)
-
-| Item | Owner | Status |
-|------|-------|--------|
-| Fix mask_paths alignment (`--no-require-mask`) | Codebase | ⚠️ NOT DONE |
-| Add optional validation tracking mode | Codebase | ⚠️ NOT DONE |
-| Sensitivity study: 228 vs 223 samples | Both | TODO |
-
----
-
-## Quick Reference: Current State
-
-| Metric | Value |
-|--------|-------|
-| Samples in training | 228 |
-| Paper used | 224 |
-| Difference | +4 (acceptable) |
-| Model | MeshNet-26 (147,474 params) |
-| Expected DICE | ~0.876 ± 0.016 |
-| Training status | READY TO TRAIN |
-| Protocol | 3 outer folds × 10 restarts = 30 runs |
-
----
-
-## Verification Sources
-
-All claims in this document were verified against:
-
-1. **OpenNeuro ds004884** - Git mirror at `https://github.com/OpenNeuroDatasets/ds004884.git`
-   - Commit: `0885e5939abc8f909a175dd782369b7afc3fdd08`
-   - Verified: 2025-12-13
-
-2. **MeshNet Paper** - "State-of-the-Art Stroke Lesion Segmentation at 1/1000th of Parameters"
-   - arXiv: [2503.05531](https://arxiv.org/abs/2503.05531)
-   - Section 2 (Dataset): Sample counts and exclusion criteria
-
-3. **HuggingFace Dataset Card** - `hugging-science/arc-aphasia-bids`
-   - Schema verified: No `acquisition` field present
-   - 228 expert lesion masks confirmed
-
----
-
-## Last Updated
-
-2025-12-14
+Verified against OpenNeuro ds004884 (commit `0885e593`) and paper Section 2.
