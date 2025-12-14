@@ -59,6 +59,7 @@ class RunResult:
     per_subject_avd: list[float]
     per_subject_mcc: list[float]
     subject_indices: list[int]
+    subject_ids: list[str]
 
 
 @dataclass
@@ -440,10 +441,24 @@ class ExperimentRunner:
 
         # Load dataset
         dataset_info = self._load_dataset_info()
-        image_paths = dataset_info["image_paths"]
-        mask_paths = dataset_info["mask_paths"]
-        lesion_volumes = dataset_info["lesion_volumes"]
-        acquisition_types = dataset_info["acquisition_types"]
+
+        from arc_meshchop.data.huggingface_loader import parse_dataset_info, validate_masks_present
+
+        (
+            image_paths,
+            mask_paths_raw,
+            lesion_volumes,
+            acquisition_types,
+            subject_ids,
+        ) = parse_dataset_info(
+            dataset_info,
+            context="Experiment training/evaluation",
+        )
+
+        # Validate masks (experiment requires ground truth for all samples)
+        mask_paths = validate_masks_present(
+            mask_paths_raw, context="Experiment training/evaluation"
+        )
 
         # Generate OUTER-only splits (no inner folds needed for replication)
         quintiles = [get_lesion_quintile(v) for v in lesion_volumes]
@@ -505,6 +520,7 @@ class ExperimentRunner:
         test_dataset = ARCDataset(
             image_paths=[Path(image_paths[i]) for i in test_indices],
             mask_paths=[Path(mask_paths[i]) for i in test_indices],
+            cache_dir=self.config.data_dir / "cache" / f"outer_{outer_fold}" / "test",
         )
 
         metrics_calculator = SegmentationMetrics()
@@ -543,6 +559,7 @@ class ExperimentRunner:
             per_subject_avd=avd_scores,
             per_subject_mcc=mcc_scores,
             subject_indices=list(test_indices),
+            subject_ids=[subject_ids[i] for i in test_indices],
         )
 
         # Save individual result

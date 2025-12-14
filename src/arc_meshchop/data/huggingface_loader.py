@@ -14,9 +14,10 @@ import hashlib
 import logging
 import re
 import tempfile
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 # Import validation constants from bids_hub (full dataset counts)
 # NOTE: These are for the FULL ARC dataset (230 subjects, 902 sessions).
@@ -71,9 +72,27 @@ class ARCDatasetInfo:
         return [s.image_path for s in self.samples]
 
     @property
-    def mask_paths(self) -> list[Path]:
-        """Get all mask paths (excludes samples without masks)."""
-        return [s.mask_path for s in self.samples if s.mask_path is not None]
+    def mask_paths(self) -> list[Path | None]:
+        """Get all mask paths, aligned 1:1 with image_paths.
+
+        Returns None for samples without lesion masks.
+        Use samples_with_masks() to get only samples that have masks.
+        """
+        return [s.mask_path for s in self.samples]
+
+    @property
+    def samples_with_masks(self) -> list[ARCSample]:
+        """Get only samples that have lesion masks.
+
+        Use this when you need filtered access. Note: indices will NOT
+        align with image_paths, lesion_volumes, etc.
+        """
+        return [s for s in self.samples if s.mask_path is not None]
+
+    @property
+    def num_with_masks(self) -> int:
+        """Count of samples that have lesion masks."""
+        return sum(1 for s in self.samples if s.mask_path is not None)
 
     @property
     def lesion_volumes(self) -> list[int]:
@@ -93,6 +112,117 @@ class ARCDatasetInfo:
     def __len__(self) -> int:
         """Return number of samples."""
         return len(self.samples)
+
+
+_DATASET_INFO_REQUIRED_KEYS: tuple[str, ...] = (
+    "image_paths",
+    "mask_paths",
+    "lesion_volumes",
+    "acquisition_types",
+    "subject_ids",
+)
+
+
+def parse_dataset_info(
+    dataset_info: Mapping[str, Any],
+    *,
+    context: str,
+) -> tuple[list[str], list[str | None], list[int], list[str], list[str]]:
+    """Validate dataset_info schema and return typed lists.
+
+    This is the SSOT for `dataset_info.json` validation across the codebase.
+    """
+    missing = [k for k in _DATASET_INFO_REQUIRED_KEYS if k not in dataset_info]
+    if missing:
+        raise ValueError(f"{context}: dataset_info missing keys: {missing}")
+
+    def _require_list(value: Any, *, key: str) -> list[Any]:
+        if not isinstance(value, list):
+            raise ValueError(f"{context}: dataset_info[{key}] must be a list")
+        return value
+
+    image_paths_any = _require_list(dataset_info["image_paths"], key="image_paths")
+    if not all(isinstance(p, str) for p in image_paths_any):
+        raise ValueError(f"{context}: dataset_info[image_paths] must be list[str]")
+    image_paths = cast(list[str], image_paths_any)
+
+    mask_paths_any = _require_list(dataset_info["mask_paths"], key="mask_paths")
+    if not all((m is None) or isinstance(m, str) for m in mask_paths_any):
+        raise ValueError(f"{context}: dataset_info[mask_paths] must be list[str | None]")
+    mask_paths = cast(list[str | None], mask_paths_any)
+
+    lesion_volumes_any = _require_list(dataset_info["lesion_volumes"], key="lesion_volumes")
+    if not all(isinstance(v, int) for v in lesion_volumes_any):
+        raise ValueError(f"{context}: dataset_info[lesion_volumes] must be list[int]")
+    lesion_volumes = cast(list[int], lesion_volumes_any)
+
+    acquisition_types_any = _require_list(
+        dataset_info["acquisition_types"], key="acquisition_types"
+    )
+    if not all(isinstance(a, str) for a in acquisition_types_any):
+        raise ValueError(f"{context}: dataset_info[acquisition_types] must be list[str]")
+    acquisition_types = cast(list[str], acquisition_types_any)
+
+    subject_ids_any = _require_list(dataset_info["subject_ids"], key="subject_ids")
+    if not all(isinstance(s, str) for s in subject_ids_any):
+        raise ValueError(f"{context}: dataset_info[subject_ids] must be list[str]")
+    subject_ids = cast(list[str], subject_ids_any)
+
+    n = len(image_paths)
+    if not (
+        len(mask_paths) == n
+        and len(lesion_volumes) == n
+        and len(acquisition_types) == n
+        and len(subject_ids) == n
+    ):
+        raise ValueError(
+            f"{context}: dataset_info list lengths must match. "
+            f"Got image_paths={len(image_paths)}, mask_paths={len(mask_paths)}, "
+            f"lesion_volumes={len(lesion_volumes)}, acquisition_types={len(acquisition_types)}, "
+            f"subject_ids={len(subject_ids)}."
+        )
+
+    if "num_samples" in dataset_info:
+        num_samples_any = dataset_info["num_samples"]
+        if not isinstance(num_samples_any, int):
+            raise ValueError(f"{context}: dataset_info[num_samples] must be an int")
+        num_samples = num_samples_any
+        if num_samples != n:
+            raise ValueError(
+                f"{context}: dataset_info num_samples mismatch: "
+                f"num_samples={num_samples} but len(image_paths)={n}."
+            )
+
+    return image_paths, mask_paths, lesion_volumes, acquisition_types, subject_ids
+
+
+def validate_masks_present(
+    mask_paths: Sequence[str | None],
+    *,
+    context: str,
+) -> list[str]:
+    """Validate all masks are present and return as non-None list.
+
+    Args:
+        mask_paths: List that may contain None values
+        context: Description of what operation needs masks (for error message)
+
+    Returns:
+        Same list, but typed as list[str] (no None)
+
+    Raises:
+        ValueError: If any masks are None, with actionable error message
+    """
+    none_indices = [i for i, m in enumerate(mask_paths) if m is None]
+    if none_indices:
+        preview = none_indices[:5]
+        suffix = f"... and {len(none_indices) - 5} more" if len(none_indices) > 5 else ""
+        raise ValueError(
+            f"{context} requires lesion masks, but {len(none_indices)} samples have None masks "
+            f"(indices: {preview}{suffix}). "
+            "Re-download dataset with 'arc-meshchop download' (default requires masks)."
+        )
+    return [cast(str, m) for m in mask_paths]
 
 
 # Alias for backwards compatibility

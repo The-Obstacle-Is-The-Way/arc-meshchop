@@ -101,6 +101,7 @@ class TestFoldResult:
             per_subject_avd=[0.25] * num_subjects,
             per_subject_mcc=[0.75] * num_subjects,
             subject_indices=list(range(num_subjects)),
+            subject_ids=[f"sub-{i}" for i in range(num_subjects)],
         )
 
     def test_mean_dice(self) -> None:
@@ -208,6 +209,7 @@ class TestExperimentResult:
             per_subject_avd=[0.25] * len(per_subject_dice),
             per_subject_mcc=[0.75] * len(per_subject_dice),
             subject_indices=subject_indices,
+            subject_ids=[f"sub-{i}" for i in subject_indices],
         )
 
     def _make_fold(
@@ -430,6 +432,7 @@ class TestRunResult:
             per_subject_avd=[0.24, 0.25, 0.26],
             per_subject_mcc=[0.75, 0.76, 0.77],
             subject_indices=[0, 1, 2],
+            subject_ids=["sub-001", "sub-002", "sub-003"],
         )
 
         d = asdict(run)
@@ -438,3 +441,4 @@ class TestRunResult:
         assert d["restart"] == 5
         assert d["test_dice"] == 0.876
         assert len(d["per_subject_dice"]) == 3
+        assert d["subject_ids"] == ["sub-001", "sub-002", "sub-003"]

@@ -215,10 +215,23 @@ def run_hpo_trial(
     with info_path.open() as f:
         dataset_info = json.load(f)
 
-    image_paths = [Path(p) for p in dataset_info["image_paths"]]
-    mask_paths = [Path(p) for p in dataset_info["mask_paths"]]
-    lesion_volumes = dataset_info["lesion_volumes"]
-    acquisition_types = dataset_info["acquisition_types"]
+    from arc_meshchop.data.huggingface_loader import parse_dataset_info, validate_masks_present
+
+    (
+        image_paths_raw,
+        mask_paths_raw,
+        lesion_volumes,
+        acquisition_types,
+        _subject_ids,
+    ) = parse_dataset_info(
+        dataset_info,
+        context="Hyperparameter optimization",
+    )
+    image_paths = [Path(p) for p in image_paths_raw]
+    mask_paths_validated = validate_masks_present(
+        mask_paths_raw, context="Hyperparameter optimization"
+    )
+    mask_paths = [Path(p) for p in mask_paths_validated]
 
     # Generate CV splits
     quintiles = [get_lesion_quintile(v) for v in lesion_volumes]

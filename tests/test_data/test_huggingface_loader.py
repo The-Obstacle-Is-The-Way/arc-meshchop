@@ -110,6 +110,55 @@ class TestARCDatasetInfo:
         assert info.lesion_volumes == [1000]
         assert info.acquisition_types == ["space_2x"]
 
+    def test_mask_paths_aligned_with_image_paths(self) -> None:
+        """mask_paths must have same length as image_paths, even with None values."""
+        from arc_meshchop.data.huggingface_loader import ARCDatasetInfo, ARCSample
+
+        samples = [
+            ARCSample(
+                subject_id="sub-001",
+                session_id="ses-1",
+                image_path=Path("/a.nii.gz"),
+                mask_path=Path("/a_mask.nii.gz"),
+                lesion_volume=100,
+                acquisition_type="space_2x",
+            ),
+            ARCSample(
+                subject_id="sub-002",
+                session_id="ses-1",
+                image_path=Path("/b.nii.gz"),
+                mask_path=None,  # No mask
+                lesion_volume=0,
+                acquisition_type="space_2x",
+            ),
+            ARCSample(
+                subject_id="sub-003",
+                session_id="ses-1",
+                image_path=Path("/c.nii.gz"),
+                mask_path=Path("/c_mask.nii.gz"),
+                lesion_volume=200,
+                acquisition_type="space_2x",
+            ),
+        ]
+
+        info = ARCDatasetInfo(samples=samples)
+
+        # All accessors must have same length
+        assert len(info.image_paths) == 3
+        assert len(info.mask_paths) == 3  # Was 2 before fix!
+        assert len(info.lesion_volumes) == 3
+        assert len(info.acquisition_types) == 3
+        assert len(info.subject_ids) == 3
+
+        # Indexing must be aligned
+        assert info.mask_paths[0] == Path("/a_mask.nii.gz")
+        assert info.mask_paths[1] is None
+        assert info.mask_paths[2] == Path("/c_mask.nii.gz")
+
+        # samples_with_masks provides filtered access
+        assert len(info.samples_with_masks) == 2
+        assert info.num_with_masks == 2
+
 
 class TestDetermineAcquisitionType:
     """Tests for acquisition type detection."""
@@ -219,3 +268,46 @@ def _create_mock_dataset(
     # __getitem__ receives (self, key) when called as mock[key]
     mock.__getitem__ = MagicMock(side_effect=lambda key: rows[key])
     return mock
+
+
+class TestValidationHelpers:
+    """Tests for dataset validation helpers."""
+
+    def test_validate_masks_present_passes_when_all_present(self) -> None:
+        """validate_masks_present returns list unchanged when no None values."""
+        from arc_meshchop.data.huggingface_loader import validate_masks_present
+
+        mask_paths = ["/a.nii.gz", "/b.nii.gz", "/c.nii.gz"]
+        result = validate_masks_present(mask_paths, context="test")
+        assert result == mask_paths
+
+    def test_validate_masks_present_raises_on_none(self) -> None:
+        """validate_masks_present raises ValueError with actionable message."""
+        from arc_meshchop.data.huggingface_loader import validate_masks_present
+
+        mask_paths = ["/a.nii.gz", None, "/c.nii.gz", None]
+
+        with pytest.raises(ValueError) as exc_info:
+            validate_masks_present(mask_paths, context="Training")
+
+        error_msg = str(exc_info.value)
+        assert "Training requires lesion masks" in error_msg
+        assert "2 samples have None masks" in error_msg
+        assert "indices: [1, 3]" in error_msg
+        assert "Re-download" in error_msg
+
+    def test_parse_dataset_info_rejects_length_mismatch(self) -> None:
+        """parse_dataset_info raises ValueError if list lengths do not match."""
+        from arc_meshchop.data.huggingface_loader import parse_dataset_info
+
+        dataset_info = {
+            "num_samples": 2,
+            "image_paths": ["a", "b"],
+            "mask_paths": ["a_mask"],  # mismatch
+            "lesion_volumes": [1, 2],
+            "acquisition_types": ["space_2x", "space_2x"],
+            "subject_ids": ["sub-001", "sub-002"],
+        }
+
+        with pytest.raises(ValueError, match="list lengths must match"):
+            parse_dataset_info(dataset_info, context="test")

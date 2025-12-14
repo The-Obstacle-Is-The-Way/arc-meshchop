@@ -52,6 +52,7 @@ class TestExperimentRunnerLogic:
                 "mask_paths": ["a"],
                 "lesion_volumes": [1],
                 "acquisition_types": ["t1"],
+                "subject_ids": ["sub-0000"],
             }
 
             MockTrainer.return_value.train.return_value = {"final_train_loss": 0.1}
@@ -94,6 +95,7 @@ class TestExperimentRunnerLogic:
                 "mask_paths": ["a"],
                 "lesion_volumes": [1],
                 "acquisition_types": ["t1"],
+                "subject_ids": ["sub-0000"],
             }
 
             # Run Restart 0

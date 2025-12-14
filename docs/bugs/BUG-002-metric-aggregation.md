@@ -1,7 +1,8 @@
 # BUG-002: Test Metric Aggregation Does Not Match Paper Protocol
 
 **Date**: 2025-12-13
-**Status**: CONFIRMED
+**Status**: ✅ FIXED
+**Last Updated**: 2025-12-14
 **Priority**: P0 (Affects paper parity claims)
 **Affects**: `src/arc_meshchop/experiment/runner.py`
 
@@ -115,81 +116,67 @@ Wilcoxon = paired comparison using 224 scores
 
 ---
 
-## Required Fix
+## Fix Applied (2025-12-14)
 
-### 1. Store Per-Subject Scores
+### 1. Per-Subject Scores Now Stored in RunResult
 
 ```python
-# In _evaluate_on_test_sets, change:
-test_results.append({
-    "outer_fold": outer_fold,
-    "test_dice": test_dice,  # Keep for backward compat
-    "per_subject_dice": dice_scores,  # ADD: raw scores
-    "per_subject_avd": avd_scores,    # ADD
-    "per_subject_mcc": mcc_scores,    # ADD
-    "subject_indices": list(test_indices),  # ADD: for Wilcoxon pairing
+# runner.py:58-60 - RunResult dataclass now includes per-subject scores
+@dataclass
+class RunResult:
     ...
-})
+    per_subject_dice: list[float]
+    per_subject_avd: list[float]
+    per_subject_mcc: list[float]
+    test_indices: list[int]
+
+# runner.py:542-544 - Scores are populated during evaluation
+RunResult(
+    per_subject_dice=dice_scores,
+    per_subject_avd=avd_scores,
+    per_subject_mcc=mcc_scores,
+    ...
+)
 ```
 
-### 2. Compute Stats from Pooled Scores
+### 2. Pooled Score Methods Implemented
 
 ```python
-@property
-def test_std_dice(self) -> float:
-    """Std of TEST DICE across all subjects (paper protocol)."""
-    all_scores = []
-    for t in self.test_results:
-        all_scores.extend(t.get("per_subject_dice", [t["test_dice"]]))
-    return float(np.std(all_scores))
+# runner.py:138-146 - get_all_per_subject_scores()
+def get_all_per_subject_scores(self) -> dict[int, dict[str, float]]:
+    """Get per-subject scores from best run per fold."""
+    ...
 
-@property
-def test_median_dice(self) -> float:
-    """Median TEST DICE (for Figure 2)."""
-    all_scores = []
-    for t in self.test_results:
-        all_scores.extend(t.get("per_subject_dice", []))
-    return float(np.median(all_scores)) if all_scores else 0.0
-
-@property
-def test_iqr_dice(self) -> tuple[float, float]:
-    """IQR of TEST DICE (for Figure 2 error bars)."""
-    all_scores = []
-    for t in self.test_results:
-        all_scores.extend(t.get("per_subject_dice", []))
-    if not all_scores:
-        return (0.0, 0.0)
-    return (float(np.percentile(all_scores, 25)),
-            float(np.percentile(all_scores, 75)))
-```
-
-### 3. Support Wilcoxon Testing
-
-```python
+# runner.py:283 - get_per_subject_scores() for Wilcoxon pairing
 def get_per_subject_scores(self) -> dict[int, dict[str, float]]:
-    """Get per-subject scores indexed by subject ID for Wilcoxon pairing."""
-    scores_by_subject = {}
-    for t in self.test_results:
-        indices = t.get("subject_indices", [])
-        dices = t.get("per_subject_dice", [])
-        for idx, dice in zip(indices, dices):
-            scores_by_subject[idx] = {"dice": dice, ...}
-    return scores_by_subject
+    ...
+```
+
+### 3. Restart Aggregation Mode Added
+
+```python
+# runner.py:189,291 - Configurable aggregation
+mode = self.config.get("restart_aggregation", "mean")
 ```
 
 ---
 
 ## Verification
 
-After fix, verify:
-1. `test_std_dice` computed from ~224 values, not 3
-2. Can generate boxplot matching Figure 1 shape
-3. Can generate scatter with IQR error bars matching Figure 2
-4. Can run Wilcoxon test between models using paired per-subject data
+✅ `per_subject_dice`, `per_subject_avd`, `per_subject_mcc` stored in RunResult
+✅ `get_all_per_subject_scores()` returns pooled scores for std/IQR computation
+✅ `get_per_subject_scores()` returns indexed scores for Wilcoxon pairing
+✅ `restart_aggregation` config supports "mean", "median", "best" modes
 
 ---
 
 ## References
 
 - Paper: Figure 1 (boxplot), Figure 2 (IQR error bars), Table 1 (Wilcoxon test)
-- Code: `src/arc_meshchop/experiment/runner.py:88-134, 401-520`
+- Code: `src/arc_meshchop/experiment/runner.py:58-60, 138-146, 283, 542-544`
+
+---
+
+## Last Updated
+
+2025-12-14

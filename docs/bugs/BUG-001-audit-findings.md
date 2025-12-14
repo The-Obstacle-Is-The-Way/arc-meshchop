@@ -1,20 +1,28 @@
 # BUG-001: Codebase Audit Findings
 
 **Date**: 2025-12-13
-**Status**: VALIDATED
-**Impact**: 1 P0, 2 P1, 3 P2, 1 P3
+**Status**: FIXED (6 of 7 issues resolved)
+**Last Updated**: 2025-12-14
 
 ## Summary
 
-An external audit identified 7 issues requiring attention. All claims have been validated against the actual codebase and data.
+An external audit identified 7 issues. **6 have been fixed**, 1 remains (low-impact).
 
-**Training Impact**: Current training (epoch 6/50) can continue. The P0 issue affects only 1 sample (sub-M2269, 0.44% of data). Other issues don't affect current training.
+| Priority | Issue | Status |
+|----------|-------|--------|
+| P0 | Mask binarization | ✅ FIXED |
+| P1 | RAS+ orientation | ✅ FIXED |
+| P1 | Resume broken | ✅ FIXED |
+| P2 | Checkpoint security | ✅ FIXED |
+| P2 | mask_paths alignment | ⚠️ NOT FIXED (low impact) |
+| P2 | Nested-CV protocol | ✅ FIXED (see NESTED-CV-PROTOCOL.md) |
+| P3 | MPS autocast | ✅ FIXED |
 
 ---
 
 ## [P0] Mask Binarization Zeros Valid Lesions
 
-**CRITICAL - VALIDATED**
+**CRITICAL - ✅ FIXED**
 
 ### Location
 - `src/arc_meshchop/data/preprocessing.py:237`
@@ -41,24 +49,22 @@ The NIfTI file has unusual scl_slope header value causing nibabel to scale uint8
 - Model learns incorrect labels for this sample
 - Also breaks lesion volume calculation for stratification
 
-### Fix
+### Fix Applied
 ```python
-# preprocessing.py:237
-# OLD: mask_normalized = (mask_resampled > 0.5).astype(np.float32)
-# NEW:
+# preprocessing.py:246 - NOW USES > 0
 mask_normalized = (mask_resampled > 0).astype(np.float32)
 
-# huggingface_loader.py:620
-# OLD: return int(np.sum(data > 0.5))
-# NEW:
+# huggingface_loader.py:621 - NOW USES > 0
 return int(np.sum(data > 0))
 ```
+
+**Verified**: 2025-12-14
 
 ---
 
 ## [P1] Missing RAS+ Canonical Orientation
 
-**HIGH - VALIDATED**
+**HIGH - ✅ FIXED**
 
 ### Location
 - `src/arc_meshchop/data/preprocessing.py:43`
@@ -78,23 +84,19 @@ sub-M2269_ses-767: ('P', 'S', 'R')
 - Network may learn inconsistent spatial features
 - Diverges from paper's `mri_convert --conform` preprocessing
 
-### Fix
+### Fix Applied
 ```python
-# preprocessing.py:43
-def load_nifti(path: Path | str) -> tuple[npt.NDArray[np.float32], npt.NDArray[np.float64]]:
-    nii = nib.load(str(path))
-    # ADD: Enforce canonical RAS+ orientation
-    nii = nib.as_closest_canonical(nii)
-    data = np.asarray(nii.get_fdata(), dtype=np.float32)
-    affine = np.asarray(nii.affine, dtype=np.float64)
-    return data, affine
+# preprocessing.py:49 - NOW ENFORCES RAS+
+nii = nib.as_closest_canonical(nii)
 ```
+
+**Verified**: 2025-12-14
 
 ---
 
 ## [P1] Resume Does Not Restore Training State
 
-**HIGH - VALIDATED**
+**HIGH - ✅ FIXED**
 
 ### Location
 - `src/arc_meshchop/training/trainer.py:166, 393-410`
@@ -121,17 +123,30 @@ for epoch in range(self.config.epochs):
 - Epoch counter restarts from 0
 - Does NOT affect current training (no resume used)
 
-### Fix
-1. Store scheduler state on load even if scheduler is None
-2. Defer scheduler state loading to after scheduler creation in `train()`
-3. Start training from `self.state.epoch + 1` instead of 0
-4. Ensure `last_epoch` is set correctly for OneCycleLR
+### Fix Applied
+```python
+# trainer.py:127 - Pending state storage
+self._pending_scheduler_state: dict | None = None
+
+# trainer.py:172-176 - Deferred scheduler state loading
+if self._pending_scheduler_state is not None:
+    self.scheduler.load_state_dict(self._pending_scheduler_state)
+    self._pending_scheduler_state = None
+
+# trainer.py:183 - Start from correct epoch
+start_epoch = self.state.epoch + 1 if self.state.global_step > 0 else 0
+
+# trainer.py:197 - Loop from start_epoch
+for epoch in range(start_epoch, self.config.epochs):
+```
+
+**Verified**: 2025-12-14
 
 ---
 
 ## [P2] Insecure Checkpoint Deserialization
 
-**MEDIUM - VALIDATED**
+**MEDIUM - ✅ FIXED**
 
 ### Location
 - `src/arc_meshchop/training/trainer.py:393`
@@ -152,17 +167,20 @@ checkpoint_data = torch.load(checkpoint, map_location=device, weights_only=True)
 - Security risk if loading untrusted checkpoints
 - CLI `--resume` exposes this
 
-### Fix
+### Fix Applied
 ```python
-# trainer.py:393
+# trainer.py:445-446 - Now uses weights_only=True
+# Use weights_only=True for security (BUG-001: P2 fix)
 checkpoint = torch.load(path, map_location=self.device, weights_only=True)
 ```
+
+**Verified**: 2025-12-14
 
 ---
 
 ## [P2] --no-require-mask Creates Misaligned dataset_info.json
 
-**MEDIUM - VALIDATED**
+**MEDIUM - ⚠️ NOT FIXED (Low Impact)**
 
 ### Location
 - `src/arc_meshchop/cli.py:145`
@@ -185,14 +203,17 @@ def mask_paths(self) -> list[Path]:
 - Training will crash or use wrong masks if `--no-require-mask` used
 - Default is `require_lesion_mask=True`, so rarely triggered
 
-### Fix
+### Status
+**NOT FIXED** - Low impact because `--no-require-mask` is rarely used. Default is `require_lesion_mask=True`.
+
+### Recommended Fix
 Write aligned lists with None placeholders, or disallow `--no-require-mask` for training workflows.
 
 ---
 
 ## [P2] Nested-CV Uses Inner-Fold Model Instead of Retrained Model
 
-**MEDIUM - VALIDATED (PROTOCOL DEVIATION)**
+**MEDIUM - ✅ FIXED (Protocol Changed)**
 
 ### Location
 - `src/arc_meshchop/experiment/runner.py:458-464`
@@ -214,29 +235,21 @@ model.load_state_dict(checkpoint["model_state_dict"])
 - May produce LOWER scores than paper (fewer training samples)
 - Many papers do this anyway; not necessarily wrong
 
-### Discussion
-Strict nested-CV:
-1. Select best model/hyperparams from inner folds
-2. **Retrain on full outer-train (all inner fold data combined)**
-3. Evaluate retrained model on outer test set
+### Resolution
+The nested CV protocol was completely redesigned based on paper analysis. See `docs/bugs/NESTED-CV-PROTOCOL.md` for full details.
 
-Current implementation skips step 2. This is a valid simplification used in many papers, but may underperform the "proper" protocol.
+**Key changes:**
+- Inner folds removed from final evaluation (only used for HP search on fold 1)
+- Now trains on full outer-train (67% of data) per fold
+- 3 outer folds × 10 restarts = 30 runs (was incorrectly 90)
 
-### Fix (Optional)
-Add retrain step:
-```python
-# After selecting best model, compute outer-train indices
-outer_train_indices = all_indices - test_indices
-# Create combined dataset from outer-train
-# Retrain model from scratch
-# Then evaluate on test set
-```
+**Verified**: 2025-12-14
 
 ---
 
 ## [P3] MPS Autocast Context When Disabled
 
-**LOW - PARTIALLY VALIDATED**
+**LOW - ✅ FIXED**
 
 ### Location
 - `src/arc_meshchop/training/trainer.py:228`
@@ -258,39 +271,46 @@ with autocast(
 - Log noise on MPS, not functional issue
 - Lower priority
 
-### Fix
+### Fix Applied
 ```python
-# Conditional context manager
+# trainer.py:268,331 - Now conditional
 if self._amp_enabled:
-    with autocast(...):
-        outputs = self.model(images)
-        loss = self.loss_fn(outputs, masks)
+    with autocast(
+        device_type=self.device.type,
+        dtype=self._amp_dtype,
+        enabled=True,
+    ):
+        # forward pass
 else:
-    outputs = self.model(images)
-    loss = self.loss_fn(outputs, masks)
+    # forward pass without autocast
 ```
 
----
-
-## Summary Table
-
-| Priority | Issue | File:Line | Impact | Fix Effort |
-|----------|-------|-----------|--------|------------|
-| P0 | Mask binarization | preprocessing.py:237 | 1 sample (0.44%) | Trivial |
-| P1 | RAS+ orientation | preprocessing.py:43 | 2 samples (0.88%) | Small |
-| P1 | Resume broken | trainer.py:166,393 | Resume unusable | Medium |
-| P2 | Checkpoint security | trainer.py:393 | Security risk | Trivial |
-| P2 | mask_paths alignment | cli.py:145 | --no-require-mask | Small |
-| P2 | Nested-CV protocol | runner.py:458 | Protocol deviation | Medium |
-| P3 | MPS autocast | trainer.py:228 | Log noise | Trivial |
+**Verified**: 2025-12-14
 
 ---
 
-## Recommended Action
+## Summary Table (Updated 2025-12-14)
 
-1. **Immediate**: Fix P0 (mask binarization) - trivial change, prevents data corruption
-2. **High**: Fix P1s before next training run
-3. **Medium**: Fix P2s for robustness
-4. **Low**: P3 can wait
+| Priority | Issue | Status | Verified |
+|----------|-------|--------|----------|
+| P0 | Mask binarization | ✅ FIXED | 2025-12-14 |
+| P1 | RAS+ orientation | ✅ FIXED | 2025-12-14 |
+| P1 | Resume broken | ✅ FIXED | 2025-12-14 |
+| P2 | Checkpoint security | ✅ FIXED | 2025-12-14 |
+| P2 | mask_paths alignment | ⚠️ NOT FIXED | Low impact |
+| P2 | Nested-CV protocol | ✅ FIXED | 2025-12-14 |
+| P3 | MPS autocast | ✅ FIXED | 2025-12-14 |
 
-**Current training should continue** - impact is minimal (1 sample affected).
+---
+
+## Remaining Work
+
+Only **1 issue remains unfixed**:
+
+- **P2 mask_paths alignment**: The `mask_paths` property filters out None masks, causing misalignment with `image_paths` when `--no-require-mask` is used. Low impact because this flag is rarely used (default is `require_lesion_mask=True`).
+
+---
+
+## Last Updated
+
+2025-12-14

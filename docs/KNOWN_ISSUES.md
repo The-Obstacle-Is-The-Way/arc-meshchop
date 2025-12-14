@@ -2,11 +2,13 @@
 
 This document tracks issues encountered during development for posterity and future debugging.
 
+**Last Updated:** 2025-12-14
+
 ---
 
 ## Issue #1: HuggingFace Dataset Missing Acquisition Metadata
 
-**Status:** WORKAROUND APPLIED
+**Status:** ⏳ BLOCKED ON UPSTREAM (Workaround applied)
 **Date Discovered:** 2025-12-12
 **Affected Code:** `src/arc_meshchop/data/huggingface_loader.py`
 
@@ -249,28 +251,37 @@ PyTorch DataLoader spawns worker processes. Those processes try to disable macOS
 
 ## Action Items Summary
 
-### P0 - Required for Paper-Exact Parity
+### ⏳ Blocked on Upstream (Paper-Exact Parity)
 
 | Item | Owner | Status |
 |------|-------|--------|
-| Add `t2w_acquisition` column to HF dataset | Dataset Curator | TODO |
-| Update loader to filter by acquisition | Codebase | TODO (blocked by above) |
-| Document 5 TSE exclusions in HF card | Dataset Curator | TODO |
+| Add `t2w_acquisition` column to HF dataset | Dataset Curator | ⏳ BLOCKED |
+| Update loader to filter by acquisition | Codebase | ⏳ BLOCKED (by above) |
+| Document 5 TSE exclusions in HF card | Dataset Curator | ⏳ BLOCKED |
+| Add `--paper-parity` flag to CLI | Codebase | ⏳ BLOCKED (by above) |
 
-### P1 - Nice to Have
-
-| Item | Owner | Status |
-|------|-------|--------|
-| Fix temp directory cache location | Codebase | DONE |
-| Add paper-parity mode flag to loader | Codebase | TODO |
-| Investigate missing mask for sub-M2039 | Dataset Curator | TODO |
-
-### P2 - Future Work
+### ✅ Fixed
 
 | Item | Owner | Status |
 |------|-------|--------|
+| Fix temp directory cache location | Codebase | ✅ DONE |
+| Fix mask binarization (`> 0.5` → `> 0`) | Codebase | ✅ DONE |
+| Fix RAS+ canonical orientation | Codebase | ✅ DONE |
+| Fix resume functionality | Codebase | ✅ DONE |
+| Fix checkpoint security (`weights_only=True`) | Codebase | ✅ DONE |
+| Fix MPS autocast conditional | Codebase | ✅ DONE |
+| Implement per-subject metric aggregation | Codebase | ✅ DONE |
+| Fix cache explosion (shared per outer fold) | Codebase | ✅ DONE |
+| Fix restart aggregation modes | Codebase | ✅ DONE |
+| Correct nested CV protocol (30 runs) | Codebase | ✅ DONE |
+
+### ⚠️ Low Priority (Not Fixed)
+
+| Item | Owner | Status |
+|------|-------|--------|
+| Fix mask_paths alignment (`--no-require-mask`) | Codebase | ⚠️ NOT DONE |
+| Add optional validation tracking mode | Codebase | ⚠️ NOT DONE |
 | Sensitivity study: 228 vs 223 samples | Both | TODO |
-| Document DICE impact in replication notes | Codebase | TODO |
 
 ---
 
@@ -283,7 +294,8 @@ PyTorch DataLoader spawns worker processes. Those processes try to disable macOS
 | Difference | +4 (acceptable) |
 | Model | MeshNet-26 (147,474 params) |
 | Expected DICE | ~0.876 ± 0.016 |
-| Training status | IN PROGRESS |
+| Training status | READY TO TRAIN |
+| Protocol | 3 outer folds × 10 restarts = 30 runs |
 
 ---
 
@@ -307,4 +319,4 @@ All claims in this document were verified against:
 
 ## Last Updated
 
-2025-12-13
+2025-12-14
