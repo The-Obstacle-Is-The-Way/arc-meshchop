@@ -82,56 +82,105 @@ class ExperimentResult:
     end_time: str
     total_duration_hours: float
 
-    # IMPORTANT: Paper reports TEST metrics, not validation metrics
-    # These properties compute from test_results (outer fold holdout)
+    # IMPORTANT: Paper reports TEST metrics computed from POOLED PER-SUBJECT scores
+    # across all outer folds (n≈224), NOT from fold-level means (n=3).
+    #
+    # Evidence from paper:
+    # - Figure 1: Boxplot showing per-subject distribution (median, IQR, outliers)
+    # - Figure 2: "median DICE score with interquartile range (IQR) error bars"
+    # - Table 1: Wilcoxon signed-rank test requires paired per-subject data
+    # - Std values (0.005-0.02) consistent with per-subject variation, not fold variation
+    #
+    # See docs/bugs/BUG-002-metric-aggregation.md for full analysis.
+
+    def _get_pooled_scores(self, metric: str) -> list[float]:
+        """Get pooled per-subject scores across all outer folds.
+
+        Args:
+            metric: One of 'dice', 'avd', 'mcc'.
+
+        Returns:
+            List of all per-subject scores pooled from outer test folds.
+        """
+        key = f"per_subject_{metric}"
+        all_scores: list[float] = []
+        for t in self.test_results:
+            if key in t:
+                all_scores.extend(t[key])
+            else:
+                # Fallback for legacy results without per-subject data
+                all_scores.append(t.get(f"test_{metric}", 0.0))
+        return all_scores
 
     @property
     def test_mean_dice(self) -> float:
-        """Mean TEST DICE across outer folds (paper Table 1 metric)."""
-        if not self.test_results:
-            return 0.0
-        test_dices = [t["test_dice"] for t in self.test_results]
-        return sum(test_dices) / len(test_dices)
+        """Mean TEST DICE across all subjects (paper Table 1 metric)."""
+        scores = self._get_pooled_scores("dice")
+        return float(np.mean(scores)) if scores else 0.0
 
     @property
     def test_std_dice(self) -> float:
-        """Std of TEST DICE across outer folds."""
-        if not self.test_results:
-            return 0.0
-        test_dices = [t["test_dice"] for t in self.test_results]
-        return float(np.std(test_dices))
+        """Std of TEST DICE across all subjects (paper Table 1 metric)."""
+        scores = self._get_pooled_scores("dice")
+        return float(np.std(scores)) if scores else 0.0
+
+    @property
+    def test_median_dice(self) -> float:
+        """Median TEST DICE (for Figure 2 central point)."""
+        scores = self._get_pooled_scores("dice")
+        return float(np.median(scores)) if scores else 0.0
+
+    @property
+    def test_iqr_dice(self) -> tuple[float, float]:
+        """IQR of TEST DICE (for Figure 2 error bars)."""
+        scores = self._get_pooled_scores("dice")
+        if not scores:
+            return (0.0, 0.0)
+        return (float(np.percentile(scores, 25)), float(np.percentile(scores, 75)))
 
     @property
     def test_mean_avd(self) -> float:
-        """Mean TEST AVD across outer folds."""
-        if not self.test_results:
-            return 0.0
-        test_avds = [t["test_avd"] for t in self.test_results]
-        return sum(test_avds) / len(test_avds)
+        """Mean TEST AVD across all subjects."""
+        scores = self._get_pooled_scores("avd")
+        return float(np.mean(scores)) if scores else 0.0
 
     @property
     def test_std_avd(self) -> float:
-        """Std of TEST AVD across outer folds."""
-        if not self.test_results:
-            return 0.0
-        test_avds = [t["test_avd"] for t in self.test_results]
-        return float(np.std(test_avds))
+        """Std of TEST AVD across all subjects."""
+        scores = self._get_pooled_scores("avd")
+        return float(np.std(scores)) if scores else 0.0
 
     @property
     def test_mean_mcc(self) -> float:
-        """Mean TEST MCC across outer folds."""
-        if not self.test_results:
-            return 0.0
-        test_mccs = [t["test_mcc"] for t in self.test_results]
-        return sum(test_mccs) / len(test_mccs)
+        """Mean TEST MCC across all subjects."""
+        scores = self._get_pooled_scores("mcc")
+        return float(np.mean(scores)) if scores else 0.0
 
     @property
     def test_std_mcc(self) -> float:
-        """Std of TEST MCC across outer folds."""
-        if not self.test_results:
-            return 0.0
-        test_mccs = [t["test_mcc"] for t in self.test_results]
-        return float(np.std(test_mccs))
+        """Std of TEST MCC across all subjects."""
+        scores = self._get_pooled_scores("mcc")
+        return float(np.std(scores)) if scores else 0.0
+
+    def get_per_subject_scores(self) -> dict[int, dict[str, float]]:
+        """Get per-subject scores indexed by subject ID for Wilcoxon pairing.
+
+        Returns:
+            Dict mapping subject index to metrics dict.
+        """
+        scores_by_subject: dict[int, dict[str, float]] = {}
+        for t in self.test_results:
+            indices = t.get("subject_indices", [])
+            dices = t.get("per_subject_dice", [])
+            avds = t.get("per_subject_avd", [])
+            mccs = t.get("per_subject_mcc", [])
+            for i, idx in enumerate(indices):
+                scores_by_subject[idx] = {
+                    "dice": dices[i] if i < len(dices) else 0.0,
+                    "avd": avds[i] if i < len(avds) else 0.0,
+                    "mcc": mccs[i] if i < len(mccs) else 0.0,
+                }
+        return scores_by_subject
 
     # Validation metrics (for debugging/monitoring, NOT for paper parity)
     @property
@@ -492,20 +541,34 @@ class ExperimentRunner:
                     avd_scores.append(scores["avd"])
                     mcc_scores.append(scores["mcc"])
 
+            # Compute fold-level means (for backward compatibility and logging)
             test_dice = float(np.mean(dice_scores)) if dice_scores else 0.0
             test_avd = float(np.mean(avd_scores)) if avd_scores else 0.0
             test_mcc = float(np.mean(mcc_scores)) if mcc_scores else 0.0
 
+            # Store both fold-level means AND per-subject scores
+            # Per-subject scores are required for:
+            # - Paper-parity std computation (n≈224, not n=3)
+            # - Boxplot generation (Figure 1)
+            # - IQR error bars (Figure 2)
+            # - Wilcoxon paired testing (Table 1)
+            # See docs/bugs/BUG-002-metric-aggregation.md
             test_results.append(
                 {
                     "outer_fold": outer_fold,
                     "best_inner_fold": best_run.inner_fold,
                     "best_restart": best_run.restart,
                     "best_val_dice": best_run.best_dice,
+                    # Fold-level means (for logging/backward compat)
                     "test_dice": test_dice,
                     "test_avd": test_avd,
                     "test_mcc": test_mcc,
                     "num_test_samples": len(test_indices),
+                    # Per-subject scores (for paper-parity aggregation)
+                    "subject_indices": list(test_indices),
+                    "per_subject_dice": dice_scores,
+                    "per_subject_avd": avd_scores,
+                    "per_subject_mcc": mcc_scores,
                 }
             )
 
@@ -549,13 +612,18 @@ class ExperimentRunner:
             ],
             "test_results": result.test_results,
             "summary": {
-                # PRIMARY: Test metrics (for paper parity - FROM PAPER Table 1)
+                # PRIMARY: Test metrics computed from POOLED per-subject scores (n≈224)
+                # This matches paper protocol - see docs/bugs/BUG-002-metric-aggregation.md
                 "test_mean_dice": result.test_mean_dice,
                 "test_std_dice": result.test_std_dice,
+                "test_median_dice": result.test_median_dice,  # For Figure 2
+                "test_iqr_dice": result.test_iqr_dice,  # For Figure 2 error bars
                 "test_mean_avd": result.test_mean_avd,
                 "test_std_avd": result.test_std_avd,
                 "test_mean_mcc": result.test_mean_mcc,
                 "test_std_mcc": result.test_std_mcc,
+                # Total subjects in pooled test set
+                "num_test_subjects": len(result._get_pooled_scores("dice")),
                 # SECONDARY: Validation metrics (for monitoring only)
                 "val_mean_dice": result.val_mean_dice,
                 "val_std_dice": result.val_std_dice,
