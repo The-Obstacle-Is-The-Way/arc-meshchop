@@ -351,14 +351,16 @@ class TestExperimentResult:
         run0 = self._make_run(0, 0, [0.8], [0])
         # Run 1: DICE 0.9
         run1 = self._make_run(0, 1, [0.9], [0])
-        
+
         fold = FoldResult(outer_fold=0, runs=[run0, run1])
 
         # Test MEAN aggregation
         result_mean = ExperimentResult(
             config={"restart_aggregation": "mean"},
             folds=[fold],
-            start_time="...", end_time="...", total_duration_hours=1.0
+            start_time="...",
+            end_time="...",
+            total_duration_hours=1.0,
         )
         assert result_mean.test_mean_dice == pytest.approx(0.85)
 
@@ -366,7 +368,9 @@ class TestExperimentResult:
         result_best = ExperimentResult(
             config={"restart_aggregation": "best"},
             folds=[fold],
-            start_time="...", end_time="...", total_duration_hours=1.0
+            start_time="...",
+            end_time="...",
+            total_duration_hours=1.0,
         )
         assert result_best.test_mean_dice == pytest.approx(0.9)
 
@@ -378,22 +382,24 @@ class TestExperimentResult:
         run0 = self._make_run(0, 0, [0.8, 0.6], [0, 1])
         # Run 1: Subj A=0.9, Subj B=0.7 -> Mean=0.8
         run1 = self._make_run(0, 1, [0.9, 0.7], [0, 1])
-        
+
         fold = FoldResult(outer_fold=0, runs=[run0, run1])
-        
+
         result = ExperimentResult(
             config={"restart_aggregation": "mean"},
             folds=[fold],
-            start_time="...", end_time="...", total_duration_hours=1.0
+            start_time="...",
+            end_time="...",
+            total_duration_hours=1.0,
         )
-        
+
         # Per-Subject Aggregation (Current Default)
         # Subj A mean = 0.85, Subj B mean = 0.65
         # Mean(0.85, 0.65) = 0.75
         assert result.test_mean_dice == pytest.approx(0.75)
         # Std(0.85, 0.65) = 0.1
         assert result.test_std_dice == pytest.approx(0.1)
-        
+
         # Per-Run Aggregation (New Requirement)
         # Mean(0.7, 0.8) = 0.75
         assert result.test_mean_dice_per_run == pytest.approx(0.75)

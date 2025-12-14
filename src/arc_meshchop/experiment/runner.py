@@ -111,12 +111,12 @@ class FoldResult:
         # Group scores by subject index
         # Assumes all restarts in this fold have same subject indices (same test split)
         scores_by_subject: dict[int, dict[str, list[float]]] = {}
-        
+
         for run in self.runs:
             for i, idx in enumerate(run.subject_indices):
                 if idx not in scores_by_subject:
                     scores_by_subject[idx] = {"dice": [], "avd": [], "mcc": []}
-                
+
                 scores_by_subject[idx]["dice"].append(run.per_subject_dice[i])
                 scores_by_subject[idx]["avd"].append(run.per_subject_avd[i])
                 scores_by_subject[idx]["mcc"].append(run.per_subject_mcc[i])
@@ -188,14 +188,14 @@ class ExperimentResult:
         """
         mode = self.config.get("restart_aggregation", "mean")
         all_scores: list[float] = []
-        
+
         for fold in self.folds:
             scores_map = fold.get_aggregated_scores(mode)
             # Extract values for the requested metric
             # Sort by subject ID for deterministic ordering (though pooling doesn't care)
             for idx in sorted(scores_map.keys()):
                 all_scores.append(scores_map[idx][metric])
-                
+
         return all_scores
 
     def _get_pooled_run_scores(self, metric: str) -> list[float]:
@@ -290,11 +290,11 @@ class ExperimentResult:
         """
         mode = self.config.get("restart_aggregation", "mean")
         scores_by_subject: dict[int, dict[str, float]] = {}
-        
+
         for fold in self.folds:
             fold_scores = fold.get_aggregated_scores(mode)
             scores_by_subject.update(fold_scores)
-            
+
         return scores_by_subject
 
 
