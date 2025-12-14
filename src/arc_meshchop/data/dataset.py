@@ -187,7 +187,8 @@ class ARCDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
             Lesion volume in voxels.
         """
         _, mask = self._load_sample(idx)
-        return int(np.sum(mask > 0.5))
+        # Use > 0 for consistency with preprocessing binarization (see BUG-001).
+        return int(np.sum(mask > 0))
 
 
 DataLoaderType: TypeAlias = torch.utils.data.DataLoader[tuple[torch.Tensor, torch.Tensor]]
