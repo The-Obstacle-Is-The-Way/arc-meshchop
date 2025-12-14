@@ -434,7 +434,8 @@ def evaluate(
         dataset_info = json.load(f)
 
     image_paths = [Path(p) for p in dataset_info["image_paths"]]
-    mask_paths = [Path(p) for p in dataset_info["mask_paths"]]
+    # Handle None values in mask_paths (BUG-001 fix: --no-require-mask may have None entries)
+    mask_paths_raw = [Path(p) if p else None for p in dataset_info["mask_paths"]]
     lesion_volumes = dataset_info["lesion_volumes"]
     acquisition_types = dataset_info["acquisition_types"]
 
@@ -454,12 +455,26 @@ def evaluate(
     split = splits.get_split(outer_fold, inner_fold=None)
     test_indices = split.test_indices
 
+    # Validate all test samples have masks (evaluation requires ground truth)
+    test_mask_paths = [mask_paths_raw[i] for i in test_indices]
+    missing_masks = [i for i, m in zip(test_indices, test_mask_paths, strict=True) if m is None]
+    if missing_masks:
+        err_console.print(
+            f"[red]Error: {len(missing_masks)} test samples have no ground truth masks.[/red]\n"
+            f"[yellow]Evaluation requires masks. Re-download with 'arc-meshchop download' "
+            f"(default requires masks).[/yellow]"
+        )
+        raise typer.Exit(1)
+
+    # Cast to non-None list (validated above)
+    mask_paths: list[Path] = cast(list[Path], test_mask_paths)
+
     console.print(f"Evaluating on {len(test_indices)} test samples (outer fold {outer_fold})")
 
     # Create test dataset
     test_dataset = ARCDataset(
         image_paths=[image_paths[i] for i in test_indices],
-        mask_paths=[mask_paths[i] for i in test_indices],
+        mask_paths=mask_paths,
     )
 
     # Load model
