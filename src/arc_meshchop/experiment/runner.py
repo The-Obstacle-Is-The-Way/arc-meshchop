@@ -89,8 +89,51 @@ class FoldResult:
 
     @property
     def best_run(self) -> RunResult:
-        """Run with best TEST DICE."""
+        """Run with best TEST DICE.
+
+        Note: This uses optimistic selection (picking best restart).
+        For paper parity, prefer using get_aggregated_scores() with 'mean'.
+        """
         return max(self.runs, key=lambda r: r.test_dice)
+
+    def get_aggregated_scores(self, mode: str) -> dict[int, dict[str, float]]:
+        """Get per-subject scores aggregated across restarts.
+
+        Args:
+            mode: Aggregation mode ("mean", "median", "best").
+
+        Returns:
+            Dict mapping subject index to metrics dict.
+        """
+        if mode == "best":
+            return self.get_all_per_subject_scores()
+
+        # Group scores by subject index
+        # Assumes all restarts in this fold have same subject indices (same test split)
+        scores_by_subject: dict[int, dict[str, list[float]]] = {}
+        
+        for run in self.runs:
+            for i, idx in enumerate(run.subject_indices):
+                if idx not in scores_by_subject:
+                    scores_by_subject[idx] = {"dice": [], "avd": [], "mcc": []}
+                
+                scores_by_subject[idx]["dice"].append(run.per_subject_dice[i])
+                scores_by_subject[idx]["avd"].append(run.per_subject_avd[i])
+                scores_by_subject[idx]["mcc"].append(run.per_subject_mcc[i])
+
+        # Aggregate
+        final_scores: dict[int, dict[str, float]] = {}
+        for idx, metrics in scores_by_subject.items():
+            final_scores[idx] = {}
+            for metric, values in metrics.items():
+                if mode == "mean":
+                    final_scores[idx][metric] = float(np.mean(values))
+                elif mode == "median":
+                    final_scores[idx][metric] = float(np.median(values))
+                else:
+                    raise ValueError(f"Unknown aggregation mode: {mode}")
+
+        return final_scores
 
     def get_all_per_subject_scores(self) -> dict[int, dict[str, float]]:
         """Get per-subject scores from best restart for aggregation."""
@@ -119,8 +162,9 @@ class ExperimentResult:
     end_time: str
     total_duration_hours: float
 
-    # IMPORTANT: Paper reports TEST metrics computed from POOLED PER-SUBJECT scores
-    # across all outer folds (n≈224), NOT from fold-level means (n=3).
+    # IMPORTANT: Paper likely reports TEST metrics computed from POOLED PER-SUBJECT scores
+    # across all outer folds (n≈224), rather than fold-level means (n=3).
+    # However, per-run aggregation (n=30) is also valuable for analysis.
     #
     # Evidence from paper:
     # - Figure 1: Boxplot showing per-subject distribution (median, IQR, outliers)
@@ -133,7 +177,7 @@ class ExperimentResult:
     def _get_pooled_scores(self, metric: str) -> list[float]:
         """Get pooled per-subject scores across all outer folds.
 
-        Uses the BEST restart from each outer fold to get per-subject scores.
+        Uses aggregated scores across restarts (mean/median/best) based on config.
         Pools all ~224 subjects for paper-parity statistics.
 
         Args:
@@ -142,15 +186,36 @@ class ExperimentResult:
         Returns:
             List of all per-subject scores pooled from outer test folds.
         """
+        mode = self.config.get("restart_aggregation", "mean")
+        all_scores: list[float] = []
+        
+        for fold in self.folds:
+            scores_map = fold.get_aggregated_scores(mode)
+            # Extract values for the requested metric
+            # Sort by subject ID for deterministic ordering (though pooling doesn't care)
+            for idx in sorted(scores_map.keys()):
+                all_scores.append(scores_map[idx][metric])
+                
+        return all_scores
+
+    def _get_pooled_run_scores(self, metric: str) -> list[float]:
+        """Get pooled run-level scores across all outer folds (n=30).
+
+        Args:
+            metric: One of 'dice', 'avd', 'mcc'.
+
+        Returns:
+            List of run scores.
+        """
         all_scores: list[float] = []
         for fold in self.folds:
-            best_run = fold.best_run
-            if metric == "dice":
-                all_scores.extend(best_run.per_subject_dice)
-            elif metric == "avd":
-                all_scores.extend(best_run.per_subject_avd)
-            elif metric == "mcc":
-                all_scores.extend(best_run.per_subject_mcc)
+            for run in fold.runs:
+                if metric == "dice":
+                    all_scores.append(run.test_dice)
+                elif metric == "avd":
+                    all_scores.append(run.test_avd)
+                elif metric == "mcc":
+                    all_scores.append(run.test_mcc)
         return all_scores
 
     @property
@@ -163,6 +228,18 @@ class ExperimentResult:
     def test_std_dice(self) -> float:
         """Std of TEST DICE across all subjects (paper Table 1 metric)."""
         scores = self._get_pooled_scores("dice")
+        return float(np.std(scores)) if scores else 0.0
+
+    @property
+    def test_mean_dice_per_run(self) -> float:
+        """Mean TEST DICE across all 30 runs."""
+        scores = self._get_pooled_run_scores("dice")
+        return float(np.mean(scores)) if scores else 0.0
+
+    @property
+    def test_std_dice_per_run(self) -> float:
+        """Std of TEST DICE across all 30 runs."""
+        scores = self._get_pooled_run_scores("dice")
         return float(np.std(scores)) if scores else 0.0
 
     @property
@@ -206,20 +283,18 @@ class ExperimentResult:
     def get_per_subject_scores(self) -> dict[int, dict[str, float]]:
         """Get per-subject scores indexed by subject ID for Wilcoxon pairing.
 
-        Uses the BEST restart from each outer fold.
+        Uses aggregated scores across restarts (mean/median/best).
 
         Returns:
             Dict mapping subject index to metrics dict.
         """
+        mode = self.config.get("restart_aggregation", "mean")
         scores_by_subject: dict[int, dict[str, float]] = {}
+        
         for fold in self.folds:
-            best_run = fold.best_run
-            for i, idx in enumerate(best_run.subject_indices):
-                scores_by_subject[idx] = {
-                    "dice": best_run.per_subject_dice[i],
-                    "avd": best_run.per_subject_avd[i],
-                    "mcc": best_run.per_subject_mcc[i],
-                }
+            fold_scores = fold.get_aggregated_scores(mode)
+            scores_by_subject.update(fold_scores)
+            
         return scores_by_subject
 
 
@@ -390,7 +465,7 @@ class ExperimentRunner:
         train_dataset = ARCDataset(
             image_paths=[Path(image_paths[i]) for i in train_indices],
             mask_paths=[Path(mask_paths[i]) for i in train_indices],
-            cache_dir=self.config.data_dir / "cache" / run_id / "train",
+            cache_dir=self.config.data_dir / "cache" / f"outer_{outer_fold}" / "train",
         )
 
         # No validation dataset - we use fixed epochs, no early stopping
@@ -473,12 +548,6 @@ class ExperimentRunner:
         # Save individual result
         results_file.write_text(json.dumps(asdict(run_result), indent=2))
 
-        # Save final checkpoint
-        torch.save(
-            {"model_state_dict": model.state_dict(), "config": asdict(self.config)},
-            run_dir / "final.pt",
-        )
-
         return run_result
 
     def _aggregate_by_fold(self) -> list[FoldResult]:
@@ -541,6 +610,9 @@ class ExperimentRunner:
                 "test_std_dice": result.test_std_dice,
                 "test_median_dice": result.test_median_dice,  # For Figure 2
                 "test_iqr_dice": result.test_iqr_dice,  # For Figure 2 error bars
+                # SECONDARY: Test metrics computed from per-run scores (n=30)
+                "test_mean_dice_per_run": result.test_mean_dice_per_run,
+                "test_std_dice_per_run": result.test_std_dice_per_run,
                 "test_mean_avd": result.test_mean_avd,
                 "test_std_avd": result.test_std_avd,
                 "test_mean_mcc": result.test_mean_mcc,

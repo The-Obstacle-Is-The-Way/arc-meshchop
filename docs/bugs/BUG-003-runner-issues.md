@@ -1,7 +1,7 @@
 # BUG-003: Runner Implementation Issues
 
 **Date**: 2025-12-13
-**Status**: DOCUMENTED (for tomorrow)
+**Status**: FIXED
 **File**: `src/arc_meshchop/experiment/runner.py`
 
 ---

@@ -51,6 +51,8 @@ class ExperimentConfig:
     parallel_runs: int = 1  # Number of parallel training runs
     skip_completed: bool = True  # Skip runs that already have results
     save_all_checkpoints: bool = False  # Save checkpoint for every restart
+    # How to aggregate across restarts
+    restart_aggregation: Literal["mean", "median", "best"] = "mean"
 
     # Random seeds (for restarts)
     base_seed: int = 42

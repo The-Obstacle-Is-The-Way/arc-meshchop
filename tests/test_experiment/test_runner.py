@@ -62,6 +62,13 @@ class TestExperimentConfig:
 
         assert config.div_factor == 100.0
 
+    def test_restart_aggregation_default(self) -> None:
+        """Verify restart aggregation defaults to mean."""
+        from arc_meshchop.experiment.config import ExperimentConfig
+
+        config = ExperimentConfig()
+        assert config.restart_aggregation == "mean"
+
 
 class TestFoldResult:
     """Tests for FoldResult aggregation."""
@@ -72,9 +79,13 @@ class TestFoldResult:
         restart: int,
         test_dice: float,
         num_subjects: int = 3,
+        per_subject_dice: list[float] | None = None,
     ) -> RunResult:
         """Helper to create a RunResult with required fields."""
         from arc_meshchop.experiment.runner import RunResult
+
+        if per_subject_dice is None:
+            per_subject_dice = [test_dice] * num_subjects
 
         return RunResult(
             outer_fold=outer_fold,
@@ -86,7 +97,7 @@ class TestFoldResult:
             final_train_loss=0.1,
             checkpoint_path="/path",
             duration_seconds=100,
-            per_subject_dice=[test_dice] * num_subjects,
+            per_subject_dice=per_subject_dice,
             per_subject_avd=[0.25] * num_subjects,
             per_subject_mcc=[0.75] * num_subjects,
             subject_indices=list(range(num_subjects)),
@@ -129,6 +140,41 @@ class TestFoldResult:
 
         expected_std = np.std([0.8, 0.81, 0.82, 0.83, 0.84])
         assert fold.std_dice == pytest.approx(expected_std)
+
+    def test_get_aggregated_scores(self) -> None:
+        """Verify aggregation logic for per-subject scores."""
+        from arc_meshchop.experiment.runner import FoldResult
+
+        # Run 0: Subject 0=0.8, Subject 1=0.6
+        run0 = self._make_run(0, 0, 0.7, num_subjects=2, per_subject_dice=[0.8, 0.6])
+        # Run 1: Subject 0=0.9, Subject 1=0.7
+        run1 = self._make_run(0, 1, 0.8, num_subjects=2, per_subject_dice=[0.9, 0.7])
+
+        fold = FoldResult(outer_fold=0, runs=[run0, run1])
+
+        # Test MEAN aggregation
+        scores_mean = fold.get_aggregated_scores("mean")
+        # Subject 0: (0.8 + 0.9) / 2 = 0.85
+        assert scores_mean[0]["dice"] == pytest.approx(0.85)
+        # Subject 1: (0.6 + 0.7) / 2 = 0.65
+        assert scores_mean[1]["dice"] == pytest.approx(0.65)
+
+        # Test BEST aggregation (Run 1 has better overall DICE)
+        scores_best = fold.get_aggregated_scores("best")
+        assert scores_best[0]["dice"] == pytest.approx(0.9)
+        assert scores_best[1]["dice"] == pytest.approx(0.7)
+
+        # Test MEDIAN aggregation
+        # With 2 items, median is mean. Let's add a third run
+        # Run 2: Subject 0=0.7, Subject 1=0.5
+        run2 = self._make_run(0, 2, 0.6, num_subjects=2, per_subject_dice=[0.7, 0.5])
+        fold = FoldResult(outer_fold=0, runs=[run0, run1, run2])
+
+        scores_median = fold.get_aggregated_scores("median")
+        # Subject 0: median(0.8, 0.9, 0.7) = 0.8
+        assert scores_median[0]["dice"] == pytest.approx(0.8)
+        # Subject 1: median(0.6, 0.7, 0.5) = 0.6
+        assert scores_median[1]["dice"] == pytest.approx(0.6)
 
 
 class TestExperimentResult:
@@ -182,7 +228,7 @@ class TestExperimentResult:
         from arc_meshchop.experiment.runner import ExperimentResult
 
         result = ExperimentResult(
-            config={},
+            config={"restart_aggregation": "best"},
             folds=[],
             start_time="2024-01-01T00:00:00",
             end_time="2024-01-02T00:00:00",
@@ -210,7 +256,7 @@ class TestExperimentResult:
         ]
 
         result = ExperimentResult(
-            config={},
+            config={"restart_aggregation": "best"},
             folds=folds,
             start_time="2024-01-01T00:00:00",
             end_time="2024-01-02T00:00:00",
@@ -240,7 +286,7 @@ class TestExperimentResult:
         ]
 
         result = ExperimentResult(
-            config={},
+            config={"restart_aggregation": "best"},
             folds=folds,
             start_time="2024-01-01T00:00:00",
             end_time="2024-01-02T00:00:00",
@@ -279,7 +325,7 @@ class TestExperimentResult:
         ]
 
         result = ExperimentResult(
-            config={},
+            config={"restart_aggregation": "best"},
             folds=folds,
             start_time="2024-01-01T00:00:00",
             end_time="2024-01-02T00:00:00",
@@ -295,6 +341,64 @@ class TestExperimentResult:
         # This is the key insight: paper reports per-subject std
         assert result.test_std_dice > 0.1  # Per-subject variation is large
         assert len(result._get_pooled_scores("dice")) == 224
+
+    def test_restart_aggregation_integration(self) -> None:
+        """Verify ExperimentResult respects restart_aggregation config."""
+        from arc_meshchop.experiment.runner import ExperimentResult, FoldResult
+
+        # Create a fold with 2 runs
+        # Run 0: DICE 0.8
+        run0 = self._make_run(0, 0, [0.8], [0])
+        # Run 1: DICE 0.9
+        run1 = self._make_run(0, 1, [0.9], [0])
+        
+        fold = FoldResult(outer_fold=0, runs=[run0, run1])
+
+        # Test MEAN aggregation
+        result_mean = ExperimentResult(
+            config={"restart_aggregation": "mean"},
+            folds=[fold],
+            start_time="...", end_time="...", total_duration_hours=1.0
+        )
+        assert result_mean.test_mean_dice == pytest.approx(0.85)
+
+        # Test BEST aggregation
+        result_best = ExperimentResult(
+            config={"restart_aggregation": "best"},
+            folds=[fold],
+            start_time="...", end_time="...", total_duration_hours=1.0
+        )
+        assert result_best.test_mean_dice == pytest.approx(0.9)
+
+    def test_both_aggregation_methods_computed(self) -> None:
+        """Verify both per-subject and per-run stats are available (Bug 4)."""
+        from arc_meshchop.experiment.runner import ExperimentResult, FoldResult
+
+        # Run 0: Subj A=0.8, Subj B=0.6 -> Mean=0.7
+        run0 = self._make_run(0, 0, [0.8, 0.6], [0, 1])
+        # Run 1: Subj A=0.9, Subj B=0.7 -> Mean=0.8
+        run1 = self._make_run(0, 1, [0.9, 0.7], [0, 1])
+        
+        fold = FoldResult(outer_fold=0, runs=[run0, run1])
+        
+        result = ExperimentResult(
+            config={"restart_aggregation": "mean"},
+            folds=[fold],
+            start_time="...", end_time="...", total_duration_hours=1.0
+        )
+        
+        # Per-Subject Aggregation (Current Default)
+        # Subj A mean = 0.85, Subj B mean = 0.65
+        # Mean(0.85, 0.65) = 0.75
+        assert result.test_mean_dice == pytest.approx(0.75)
+        # Std(0.85, 0.65) = 0.1
+        assert result.test_std_dice == pytest.approx(0.1)
+        
+        # Per-Run Aggregation (New Requirement)
+        # Mean(0.7, 0.8) = 0.75
+        assert result.test_mean_dice_per_run == pytest.approx(0.75)
+        # Std(0.7, 0.8) = 0.05
+        assert result.test_std_dice_per_run == pytest.approx(0.05)
 
 
 class TestRunResult:
