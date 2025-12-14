@@ -56,7 +56,7 @@ This is unambiguous:
 
 **Paper did this with Orion/ASHA. We skip this and use their final HPs.**
 
-```
+```text
 Outer Fold 1 Training Data:
 ├── Inner Fold 0: train/val split → test HP config A
 ├── Inner Fold 1: train/val split → test HP config B
@@ -67,7 +67,7 @@ Best HP configuration: H* = {lr=0.001, epochs=50, ...}
 
 ### Phase 2: Final Evaluation (All Outer Folds)
 
-```
+```python
 for outer_fold in [0, 1, 2]:
     outer_train = all_data - test_fold[outer_fold]  # 67% of data
     outer_test = test_fold[outer_fold]               # 33% of data
@@ -84,7 +84,7 @@ final_score = pool_all_per_subject_scores(fold_scores)
 
 ### Run Count
 
-```
+```text
 Phase 1 (HP Search): Skip - using paper's final HPs
 Phase 2 (Final Eval): 3 outer folds × 10 restarts = 30 runs
 
@@ -128,7 +128,7 @@ def total_runs(self) -> int:
 
 ### Training Data Flow
 
-```
+```text
 Before (WRONG):
 Total Data (224 subjects)
 └── Outer Fold 1 (149 train / 75 test)

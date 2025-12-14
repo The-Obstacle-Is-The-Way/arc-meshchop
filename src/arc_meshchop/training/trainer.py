@@ -149,7 +149,14 @@ class Trainer:
             When val_loader is None, training runs for fixed epochs without
             validation. This matches the paper protocol where hyperparameters
             are already known and we train on full outer-train data.
+
+        Raises:
+            ValueError: If train_loader is empty.
         """
+        # Guard against empty loaders (prevents div-by-zero and OneCycleLR errors)
+        if len(train_loader) == 0:
+            raise ValueError("train_loader must have at least one batch")
+
         # Create scheduler with total steps
         # NOTE: div_factor=100 is critical for paper parity
         # FROM PAPER: "starts at 1/100th of the max learning rate"

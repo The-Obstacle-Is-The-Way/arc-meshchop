@@ -171,7 +171,7 @@ This produces clinically valid models but not exact paper replication.
 ## 6. References
 
 - KNOWN_ISSUES.md: Issue #1 (Acquisition Type Metadata) and Issue #2 (Sample Count)
-- OpenNeuro ds004884: https://openneuro.org/datasets/ds004884
+- OpenNeuro ds004884: [ds004884](https://openneuro.org/datasets/ds004884)
 - Paper Section 2: "We utilized SPACE sequences with x2 in-plane acceleration (115 scans) and without acceleration (109 scans), while excluding the turbo-spin echo T2-weighted sequences (5 scans)"
 
 ---

@@ -248,9 +248,9 @@ Recommend **Option A** — for paper parity, use actual ASHA.
 
 **Problem:**
 ```python
-# cli.py:301 (train command) - HAS cache_dir
+# cli.py:316 (train command) - HAS cache_dir
 train_dataset = ARCDataset(
-    cache_dir=data_dir / "cache" / f"fold_{outer_fold}_{inner_fold}" / "train",
+    cache_dir=data_dir / "cache" / f"fold_{outer_fold}" / "train",
 )
 
 # experiment/runner.py:309 - NO cache_dir
@@ -261,10 +261,11 @@ train_dataset = ARCDataset(
 )
 ```
 
-**Impact:** Full 90-run experiment will re-preprocess every volume every time.
+**Impact:** Full 30-run experiment will re-preprocess every volume every time.
 256³ resampling is expensive. This will add hours to experiment runtime.
 
-**Fix:** Add `cache_dir` to experiment runner's dataset creation.
+**Status:** FIXED — runner.py now uses `cache_dir=...f"outer_{outer_fold}"...` which
+shares cache across restarts within each fold (BUG-003 fix).
 
 ### Risk 2: Temp File Leaks in Lesion Volume Computation
 
@@ -337,7 +338,7 @@ User has no idea if volumes are wrong.
 
 ```bash
 # After fixing memory issue, this should work on 16GB machine:
-uv run arc-meshchop train --channels 26 --epochs 5 --outer-fold 0 --inner-fold 0
+uv run arc-meshchop train --channels 26 --epochs 5 --outer-fold 0
 
 # After fixing docs, these examples should work:
 uv run arc-meshchop evaluate outputs/train/best.pt --data-dir data/arc

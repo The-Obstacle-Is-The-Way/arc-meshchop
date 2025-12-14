@@ -235,7 +235,8 @@ def train(
     """Train MeshNet on ARC dataset.
 
     Trains a single model configuration on specified CV folds.
-    Use arc-meshchop experiment to run full nested CV.
+    Note: `arc-meshchop experiment` runs the paper replication protocol
+    (3 outer folds x N restarts) using full outer-train per fold.
 
     FROM PAPER:
     - AdamW optimizer (lr=0.001, weight_decay=3e-5, eps=1e-4)
@@ -589,10 +590,10 @@ def experiment(
         typer.Option("--skip-completed/--no-skip", help="Skip completed runs"),
     ] = True,
 ) -> None:
-    """Run full nested CV experiment.
+    """Run paper replication experiment (outer-fold evaluation + restarts).
 
-    Runs all 90 configurations (3 outer x 3 inner x 10 restarts)
-    and produces paper-comparable results.
+    Runs 3 outer folds x N restarts (default 30 runs) and produces
+    paper-comparable results. Training uses full outer-train data per fold.
 
     Hyperparameters can be overridden (e.g., from HPO results).
 
