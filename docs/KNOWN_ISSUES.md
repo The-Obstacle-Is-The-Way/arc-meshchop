@@ -1,23 +1,13 @@
 # Known Issues
 
-## Issue #1: Missing Acquisition Metadata (Blocked on Upstream)
+## Issue #1: Missing Acquisition Metadata (RESOLVED)
 
-The HuggingFace dataset (`hugging-science/arc-aphasia-bids`) lacks the `t2w_acquisition` column needed to filter by MRI sequence type.
+The HuggingFace dataset (`hugging-science/arc-aphasia-bids`) has been updated with the `t2w_acquisition`
+column, enabling filtering by MRI sequence type.
 
-Current schema:
-```
-subject_id, session_id, t1w, t2w, flair, bold, dwi, sbref, lesion, age_at_stroke, sex, wab_aq, wab_type
-```
-Missing: `t2w_acquisition` (values: `space_2x`, `space_no_accel`, `turbo_spin_echo`)
-
-The paper states: *"We utilized SPACE sequences with x2 in-plane acceleration (115 scans) and without acceleration (109 scans), while excluding the turbo-spin echo T2-weighted sequences (5 scans)."*
-
-OpenNeuro has this info in BIDS filenames (`acq-spc3p2`, `acq-spc3`, `acq-tse3`), but it wasn't extracted to HuggingFace.
-
-**Workaround:** Accept all samples with T2w + lesion mask regardless of acquisition type.
-
-**Upstream fix needed:** Add `t2w_acquisition` column to HuggingFace dataset.
-
+- **Status:** Resolved (Upstream fix complete)
+- **Resolution:** `t2w_acquisition` column added with values: `space_2x`, `space_no_accel`, `turbo_spin_echo`.
+- **Action:** Use `--paper-parity` flag to strictly filter for the paper's cohort.
 
 ## Issue #2: 228 vs 224 Sample Count
 
@@ -32,12 +22,17 @@ We have 228 samples; paper used 224.
 
 The discrepancy:
 - Paper had 1 additional SPACE mask (`sub-M2039/ses-1222`) not publicly available
-- Paper excluded 5 TSE samples; we include them (can't filter without acquisition metadata)
-- Net: +5 TSE - 1 missing = +4
+- Paper excluded 5 TSE samples; by default we also exclude them to match paper
+- Available subset: 223 samples (115 SPACE 2x + 108 SPACE no-accel)
 
-**Decision:** Proceed with 228. Both SPACE and TSE are T2-weighted with identical lesion contrast. The 5 extra samples (2.2% of dataset) are well within the paper's reported variance (0.876 ± 0.016).
+**Solution:**
+- **Default mode:** Uses 223 samples (excludes TSE). This matches the paper methodology.
+- **Extended mode (`--include-tse`):** Uses 228 samples (includes TSE). Maximizes data utility.
+- **Paper Parity mode (`--paper-parity`):** Uses strict 223 samples with count verification.
+  - Fails if count doesn't exactly match 223.
+  - Recommended for replication studies.
 
-For paper-exact parity, exclude these TSE subjects:
+For paper-exact parity, the loader automatically excludes these TSE subjects:
 - sub-M2002/ses-1441
 - sub-M2007/ses-6330
 - sub-M2015/ses-409
@@ -49,6 +44,7 @@ For paper-exact parity, exclude these TSE subjects:
 
 These are resolved but documented for reference:
 
+- **Missing Acquisition Metadata** - Fixed: Upstream dataset updated
 - **NIfTI cache in temp dir** - Fixed: `cache_dir` now passed through properly
 - **Nifti1ImageWrapper objects** - Fixed: in-memory images saved to disk cache
 - **MallocStackLogging warning** - Non-issue: cosmetic macOS noise from PyTorch workers
@@ -56,7 +52,8 @@ These are resolved but documented for reference:
 
 ## Current State
 
-- 228 samples ready for training
+- 223 samples ready for training (default, excludes TSE)
+- 228 samples available with `--include-tse` flag
 - MeshNet-26: 147,474 parameters
 - Protocol: 3 outer folds × 10 restarts = 30 runs
 - Expected DICE: ~0.876

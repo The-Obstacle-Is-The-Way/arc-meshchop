@@ -163,6 +163,15 @@ class TestARCDatasetInfo:
 class TestDetermineAcquisitionType:
     """Tests for acquisition type detection."""
 
+    def test_detects_from_t2w_acquisition_column(self) -> None:
+        """Verify priority given to t2w_acquisition column."""
+        from arc_meshchop.data.huggingface_loader import _determine_acquisition_type
+
+        # Should override filename if present
+        row = {"t2w_acquisition": "space_2x"}
+        acq_type = _determine_acquisition_type(row, "/cache/sub-001_ses-1_acq-tse_T2w.nii.gz")
+        assert acq_type == "space_2x"
+
     def test_detects_space_2x_from_filename(self) -> None:
         """Verify SPACE 2x detection from BIDS filename."""
         from arc_meshchop.data.huggingface_loader import _determine_acquisition_type
@@ -229,6 +238,36 @@ class TestVerifySampleCounts:
 
         with pytest.raises(ValueError, match="Too few samples"):
             verify_sample_counts(samples)
+
+    def test_paper_parity_mode_enforces_223_samples(self) -> None:
+        """Verify paper parity mode expects exactly 223 samples."""
+        from arc_meshchop.data.huggingface_loader import ARCSample, verify_sample_counts
+
+        # 224 samples (original paper claim) - should fail parity (needs 223)
+        samples = [
+            ARCSample("sub", "ses", Path("i"), Path("m"), 100, "space_2x") for _ in range(224)
+        ]
+
+        with pytest.raises(ValueError, match="Paper parity mode: expected 223"):
+            verify_sample_counts(samples, paper_parity=True)
+
+        # 223 samples - should pass
+        samples_223 = samples[:223]
+        verify_sample_counts(samples_223, paper_parity=True)
+
+    def test_paper_parity_mode_rejects_tse(self) -> None:
+        """Verify paper parity mode rejects TSE samples."""
+        from arc_meshchop.data.huggingface_loader import ARCSample, verify_sample_counts
+
+        samples = [
+            ARCSample("sub", "ses", Path("i"), Path("m"), 100, "space_2x") for _ in range(222)
+        ]
+        samples.append(ARCSample("sub", "ses", Path("i"), Path("m"), 100, "turbo_spin_echo"))
+
+        # Total is 223, but includes TSE
+        assert len(samples) == 223
+        with pytest.raises(ValueError, match="Paper parity mode: Found 1 TSE"):
+            verify_sample_counts(samples, paper_parity=True)
 
 
 def _create_mock_dataset(

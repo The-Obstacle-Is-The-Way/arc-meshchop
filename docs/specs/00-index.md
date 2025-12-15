@@ -75,12 +75,12 @@ Layer Structure:
 
 ## Current Status
 
-**Training in progress:** MeshNet-26 on 228 samples (includes 5 TSE)
+**Ready to train:** MeshNet-26 on 223 samples (default, excludes TSE)
 
-See `KNOWN_ISSUES.md` for:
-- Sample count discrepancy (228 vs 224)
-- Acquisition type metadata missing from HuggingFace dataset
-- Workarounds in place
+All blockers resolved:
+- ✅ Acquisition type metadata (`t2w_acquisition`) now available in HuggingFace dataset
+- ✅ Paper parity mode (`--paper-parity`) for strict 223-sample replication
+- ✅ 291 tests passing
 
 ---
 

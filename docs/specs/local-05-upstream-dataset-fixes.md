@@ -1,6 +1,6 @@
 # Local Spec 05: Upstream Dataset Fixes
 
-> **Blocked on upstream** — Requires updates to `neuroimaging-go-brrrr` and HuggingFace dataset
+> **Status:** ✅ IMPLEMENTED
 >
 > **Goal:** Enable exact paper replication with 223 SPACE-only samples (excluding 5 TSE).
 
@@ -14,7 +14,8 @@ This spec documents the required upstream fixes to enable exact paper replicatio
 2. **Update loader to filter by acquisition type**
 3. **Document the 5 TSE exclusions in dataset card**
 
-Currently training proceeds with 228 samples (includes 5 TSE), which is clinically valid but not exact paper replication.
+Currently training proceeds with 228 samples (includes 5 TSE), which is clinically valid 
+but not exact paper replication.
 
 ---
 
@@ -36,11 +37,16 @@ Verified against OpenNeuro ds004884 commit `0885e5939abc8f909a175dd782369b7afc3f
 
 | Subject | Session | OpenNeuro Path |
 |---------|---------|----------------|
-| sub-M2002 | ses-1441 | `derivatives/lesion_masks/sub-M2002/ses-1441/anat/sub-M2002_ses-1441_acq-tse3_run-4_T2w_desc-lesion_mask.nii.gz` |
-| sub-M2007 | ses-6330 | `derivatives/lesion_masks/sub-M2007/ses-6330/anat/sub-M2007_ses-6330_acq-tse3_run-5_T2w_desc-lesion_mask.nii.gz` |
-| sub-M2015 | ses-409 | `derivatives/lesion_masks/sub-M2015/ses-409/anat/sub-M2015_ses-409_acq-tse3_run-5_T2w_desc-lesion_mask.nii.gz` |
-| sub-M2016 | ses-2721 | `derivatives/lesion_masks/sub-M2016/ses-2721/anat/sub-M2016_ses-2721_acq-tse3_run-4_T2w_desc-lesion_mask.nii.gz` |
-| sub-M2017 | ses-1141 | `derivatives/lesion_masks/sub-M2017/ses-1141/anat/sub-M2017_ses-1141_acq-tse3_run-5_T2w_desc-lesion_mask.nii.gz` |
+| sub-M2002 | ses-1441 | `derivatives/lesion_masks/sub-M2002/ses-1441/anat/sub-M2002_ses-
+1441_acq-tse3_run-4_T2w_desc-lesion_mask.nii.gz` |
+| sub-M2007 | ses-6330 | `derivatives/lesion_masks/sub-M2007/ses-6330/anat/sub-M2007_ses-
+6330_acq-tse3_run-5_T2w_desc-lesion_mask.nii.gz` |
+| sub-M2015 | ses-409 | `derivatives/lesion_masks/sub-M2015/ses-409/anat/sub-M2015_ses-40
+9_acq-tse3_run-5_T2w_desc-lesion_mask.nii.gz` |
+| sub-M2016 | ses-2721 | `derivatives/lesion_masks/sub-M2016/ses-2721/anat/sub-M2016_ses-
+2721_acq-tse3_run-4_T2w_desc-lesion_mask.nii.gz` |
+| sub-M2017 | ses-1141 | `derivatives/lesion_masks/sub-M2017/ses-1141/anat/sub-M2017_ses-
+1141_acq-tse3_run-5_T2w_desc-lesion_mask.nii.gz` |
 
 **1 missing SPACE mask:**
 - `sub-M2039/ses-1222` has `acq-spc3` T2w but NO lesion mask directory
@@ -106,11 +112,11 @@ def get_arc_features() -> Features:
 
 ### 3.1 Upstream (neuroimaging-go-brrrr)
 
-- [ ] Add `_parse_acquisition_type()` function to extract `acq-*` from BIDS filenames
-- [ ] Add `t2w_acquisition` field to `get_arc_features()` schema
-- [ ] Update `build_arc_file_table()` to populate the new field
-- [ ] Re-upload HuggingFace dataset with acquisition metadata
-- [ ] Update dataset card to document:
+- [x] Add `_parse_acquisition_type()` function to extract `acq-*` from BIDS filenames
+- [x] Add `t2w_acquisition` field to `get_arc_features()` schema
+- [x] Update `build_arc_file_table()` to populate the new field
+- [x] Re-upload HuggingFace dataset with acquisition metadata
+- [x] Update dataset card to document:
   - Acquisition type field meanings
   - 5 TSE samples that paper excludes
   - Missing mask for sub-M2039/ses-1222
@@ -119,10 +125,10 @@ def get_arc_features() -> Features:
 
 After upstream is fixed:
 
-- [ ] Update `load_arc_from_huggingface()` to use `t2w_acquisition` column
-- [ ] Change default filtering: `exclude_turbo_spin_echo=True`
-- [ ] Add `--paper-parity` flag to CLI for strict 223-sample mode
-- [ ] Remove workaround code that defaults unknown acquisitions
+- [x] Update `load_arc_from_huggingface()` to use `t2w_acquisition` column
+- [x] Change default filtering: `exclude_turbo_spin_echo=True`
+- [x] Add `--paper-parity` flag to CLI for strict 223-sample mode
+- [x] Remove workaround code that defaults unknown acquisitions
 
 ---
 
@@ -155,16 +161,21 @@ def test_acquisition_type_distribution():
 
 ---
 
-## 5. Current Workaround
+## 5. Historical Workaround (No Longer Needed)
 
-Until upstream is fixed, the codebase:
+This section documents the workaround that was in place before the upstream fix.
 
-1. **Accepts 228 samples** (TSE included)
-2. **Defaults unknown acquisitions** to `space_no_accel`
-3. **Logs clear warnings** about discrepancy
-4. **Documents in KNOWN_ISSUES.md**
+**RESOLVED:** The HuggingFace dataset now has `t2w_acquisition` column and the loader uses it.
 
-This produces clinically valid models but not exact paper replication.
+Previously:
+1. Accepted 228 samples (TSE included)
+2. Defaulted unknown acquisitions to `space_no_accel`
+3. Logged warnings about discrepancy
+
+Now:
+1. Default mode uses 223 samples (excludes TSE, matches paper)
+2. `--paper-parity` flag enables strict count verification
+3. `--include-tse` flag allows 228 samples for maximum data utilization
 
 ---
 
@@ -172,10 +183,12 @@ This produces clinically valid models but not exact paper replication.
 
 - KNOWN_ISSUES.md: Issue #1 (Acquisition Type Metadata) and Issue #2 (Sample Count)
 - OpenNeuro ds004884: [ds004884](https://openneuro.org/datasets/ds004884)
-- Paper Section 2: "We utilized SPACE sequences with x2 in-plane acceleration (115 scans) and without acceleration (109 scans), while excluding the turbo-spin echo T2-weighted sequences (5 scans)"
+- Paper Section 2: "We utilized SPACE sequences with x2 in-plane acceleration (115 scans)
+ and without acceleration (109 scans), while excluding the turbo-spin echo T2-weighted se
+quences (5 scans)"
 
 ---
 
 ## Last Updated
 
-2025-12-13
+2025-12-14

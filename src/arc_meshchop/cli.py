@@ -113,6 +113,10 @@ def download(
         bool,
         typer.Option("--verify-counts/--no-verify-counts", help="Verify paper sample counts"),
     ] = True,
+    paper_parity: Annotated[
+        bool,
+        typer.Option("--paper-parity", help="Use strict 223-sample mode (excludes TSE)"),
+    ] = False,
 ) -> None:
     """Download ARC dataset from HuggingFace Hub.
 
@@ -124,6 +128,11 @@ def download(
 
     console.print(f"Downloading ARC dataset to {output_dir}...")
 
+    if paper_parity:
+        console.print("[yellow]Paper parity mode enabled: Using strict 223-sample cohort.[/yellow]")
+        exclude_turbo_spin_echo = True
+        verify_counts = True
+
     try:
         arc_info = load_arc_from_huggingface(
             repo_id=repo_id,
@@ -133,6 +142,7 @@ def download(
             exclude_turbo_spin_echo=exclude_turbo_spin_echo,
             require_lesion_mask=require_lesion_mask,
             verify_counts=verify_counts,
+            paper_parity=paper_parity,
         )
 
         # Save dataset info for later use
@@ -156,7 +166,10 @@ def download(
 
         console.print(f"[green]Downloaded {len(arc_info)} samples[/green]")
         console.print(f"Dataset info saved to {info_path}")
-        console.print("Expected: ~224 samples (from paper)")
+        if paper_parity:
+            console.print("Expected: 223 samples (paper parity subset)")
+        else:
+            console.print("Expected: ~224 samples (from paper)")
 
     except Exception as e:
         err_console.print(f"[red]Error downloading dataset: {e}[/red]")
@@ -231,6 +244,10 @@ def train(
         Path | None,
         typer.Option("--resume", help="Resume from checkpoint"),
     ] = None,
+    paper_parity: Annotated[
+        bool,
+        typer.Option("--paper-parity", help="Verify strict 223-sample mode"),
+    ] = False,
 ) -> None:
     """Train MeshNet on ARC dataset.
 
@@ -284,6 +301,24 @@ def train(
         err_console.print(f"[red]Error: {none_mask_count} samples missing lesion masks.[/red]")
         err_console.print("Training requires lesion masks. Re-run download with --require-mask.")
         raise typer.Exit(1)
+
+    # Verify paper parity counts
+    if paper_parity:
+        if len(image_paths) != 223:
+            err_console.print(
+                f"[red]Paper Parity Error: Expected 223 samples, got {len(image_paths)}.[/red]"
+            )
+            err_console.print(
+                "Re-run 'arc-meshchop download --paper-parity' to ensure correct dataset."
+            )
+            raise typer.Exit(1)
+        # Check TSE
+        tse_count = sum(1 for acq in acquisition_types if "turbo" in str(acq) or "tse" in str(acq))
+        if tse_count > 0:
+            err_console.print(f"[red]Paper Parity Error: Found {tse_count} TSE samples.[/red]")
+            err_console.print("Re-run 'arc-meshchop download --paper-parity' to exclude TSE.")
+            raise typer.Exit(1)
+        console.print("[yellow]Paper parity mode: Verified 223 samples (0 TSE).[/yellow]")
 
     # Safe to cast after validation (no None values)
     mask_paths: list[Path] = cast(list[Path], mask_paths_raw)
@@ -589,6 +624,10 @@ def experiment(
         bool,
         typer.Option("--skip-completed/--no-skip", help="Skip completed runs"),
     ] = True,
+    paper_parity: Annotated[
+        bool,
+        typer.Option("--paper-parity", help="Verify strict 223-sample mode"),
+    ] = False,
 ) -> None:
     """Run paper replication experiment (outer-fold evaluation + restarts).
 
@@ -604,6 +643,37 @@ def experiment(
     """
     from arc_meshchop.experiment.config import ExperimentConfig
     from arc_meshchop.experiment.runner import run_experiment
+
+    # Verify paper parity counts if requested
+    if paper_parity:
+        info_path = data_dir / "dataset_info.json"
+        if not info_path.exists():
+            err_console.print(f"[red]Dataset info not found: {info_path}[/red]")
+            err_console.print("Run 'arc-meshchop download' first.")
+            raise typer.Exit(1)
+
+        with info_path.open() as f:
+            dataset_info = json.load(f)
+
+        num_samples = len(dataset_info["image_paths"])
+        if num_samples != 223:
+            err_console.print(
+                f"[red]Paper Parity Error: Expected 223 samples, got {num_samples}.[/red]"
+            )
+            err_console.print(
+                "Re-run 'arc-meshchop download --paper-parity' to ensure correct dataset."
+            )
+            raise typer.Exit(1)
+
+        # Check TSE
+        acq_types = dataset_info["acquisition_types"]
+        tse_count = sum(1 for acq in acq_types if "turbo" in str(acq) or "tse" in str(acq))
+        if tse_count > 0:
+            err_console.print(f"[red]Paper Parity Error: Found {tse_count} TSE samples.[/red]")
+            err_console.print("Re-run 'arc-meshchop download --paper-parity' to exclude TSE.")
+            raise typer.Exit(1)
+
+        console.print("[yellow]Paper parity mode: Verified 223 samples (0 TSE).[/yellow]")
 
     # Cast variant to Literal type for ExperimentConfig
     model_variant = cast(Literal["meshnet_5", "meshnet_16", "meshnet_26"], variant)
