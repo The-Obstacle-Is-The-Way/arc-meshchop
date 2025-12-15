@@ -83,6 +83,24 @@ class TestLoadARCFromHuggingFace:
             # Should only have samples with masks
             assert len(info) == 5
 
+    def test_supports_v4_sequence_nifti_fields(self, tmp_path: Path) -> None:
+        """Verify loader supports v4 Sequence(Nifti()) (lists) for structural fields."""
+        mock_dataset = _create_mock_dataset(n_samples=3, v4_sequence_nifti=True)
+        mock_return = {"train": mock_dataset}
+
+        with patch(
+            "datasets.load_dataset",  # Patch at the source module
+            return_value=mock_return,
+        ):
+            from arc_meshchop.data.huggingface_loader import load_arc_from_huggingface
+
+            info = load_arc_from_huggingface(
+                cache_dir=tmp_path,
+                verify_counts=False,
+            )
+
+            assert len(info) == 3
+
 
 class TestARCDatasetInfo:
     """Tests for ARCDatasetInfo dataclass."""
@@ -274,6 +292,7 @@ def _create_mock_dataset(
     n_samples: int = 10,
     acquisition_types: list[str] | None = None,
     has_mask: list[bool] | None = None,
+    v4_sequence_nifti: bool = False,
 ) -> MagicMock:
     """Create mock HuggingFace dataset for testing."""
     if acquisition_types is None:
@@ -290,11 +309,24 @@ def _create_mock_dataset(
             acq_str = "tse"
         else:
             acq_str = "space"
+
+        t2w_path = f"/path/sub-{idx:04d}_ses-1_acq-{acq_str}_T2w.nii.gz"
+        t2w: str | list[str] = [t2w_path] if v4_sequence_nifti else t2w_path
+
+        lesion_path = f"/path/mask_{idx}.nii.gz" if has_mask[idx] else None
+        lesion: str | None | list[str]
+        if lesion_path is None:
+            lesion = None
+        elif v4_sequence_nifti:
+            lesion = [lesion_path]
+        else:
+            lesion = lesion_path
+
         return {
             "subject_id": f"sub-{idx:04d}",
             "session_id": "ses-1",
-            "t2w": f"/path/sub-{idx:04d}_ses-1_acq-{acq_str}_T2w.nii.gz",
-            "lesion": f"/path/mask_{idx}.nii.gz" if has_mask[idx] else None,
+            "t2w": t2w,
+            "lesion": lesion,
             "acquisition": acquisition_types[idx],
         }
 

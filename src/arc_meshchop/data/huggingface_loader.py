@@ -30,6 +30,26 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _unwrap_sequence(value: Any) -> Any:
+    """Unwrap v4 Sequence(Nifti()) schema to single object.
+
+    HuggingFace ARC v4 changed structural fields from Nifti() to Sequence(Nifti())
+    to handle sessions with multiple runs. This function extracts the first element
+    from lists while maintaining backwards compatibility with single objects.
+
+    Args:
+        value: A list (v4 schema) or single object (v3 schema) or None.
+
+    Returns:
+        First element if list, original value if not a list, None if empty list.
+    """
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return value[0] if value else None
+    return value
+
+
 @dataclass
 class ARCSample:
     """Single ARC sample metadata.
@@ -380,13 +400,15 @@ def _extract_samples(
         session_id = row.get("session_id", "ses-1")
 
         # Check for lesion mask
-        lesion = row.get("lesion")
+        # NOTE: v4 schema uses Sequence(Nifti()), so lesion may be a list
+        lesion = _unwrap_sequence(row.get("lesion"))
         if require_lesion_mask and lesion is None:
             continue
 
         # Get T2-weighted image (primary modality for lesion segmentation)
         # FROM PAPER: Uses T2-weighted images exclusively
-        t2w = row.get("t2w")
+        # NOTE: v4 schema uses Sequence(Nifti()), so t2w may be a list
+        t2w = _unwrap_sequence(row.get("t2w"))
         if t2w is None:
             if strict_t2w:
                 # Paper parity mode: Skip sessions without T2w
@@ -394,7 +416,7 @@ def _extract_samples(
                 continue
             else:
                 # Non-parity mode: Allow FLAIR fallback for experimentation
-                t2w = row.get("flair")
+                t2w = _unwrap_sequence(row.get("flair"))
                 if t2w is None:
                     continue
 
