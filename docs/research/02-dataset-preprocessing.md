@@ -31,8 +31,10 @@ The paper uses specific acquisition sequences and excludes others:
 | Sequence Type | Count | Description |
 |---------------|-------|-------------|
 | SPACE with 2x acceleration | 115 scans | Sampling Perfection with Application optimized Contrast using different flip angle Evolution |
-| SPACE without acceleration | 109 scans | Same sequence, no in-plane acceleration |
-| **Total included** | **224 scans** | |
+| SPACE without acceleration | 108 scans | Same sequence, no in-plane acceleration |
+| **Total included** | **223 scans** | |
+
+> **Note:** Paper cites 224 (115+109), but OpenNeuro ground truth has 223 (115+108). Likely a typo in the paper.
 
 ### Excluded Sequences
 
