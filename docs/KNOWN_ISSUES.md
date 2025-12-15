@@ -21,9 +21,10 @@ We have 228 samples; paper used 224.
 | **Total** | **228** | **224** |
 
 The discrepancy:
-- Paper had 1 additional SPACE mask (`sub-M2039/ses-1222`) not publicly available
-- Paper excluded 5 TSE samples; by default we also exclude them to match paper
-- Available subset: 223 samples (115 SPACE 2x + 108 SPACE no-accel)
+- Paper cites 224 SPACE samples (115 + 109); OpenNeuro has 223 (115 + 108)
+- This is likely a typo in the paper (off by 1 on space_no_accel count)
+- Paper excluded 5 TSE samples; we also exclude them by default
+- Ground truth: 223 SPACE samples (115 SPACE 2x + 108 SPACE no-accel)
 
 **Solution:**
 - **Default mode:** Uses 223 samples (excludes TSE). This matches the paper methodology.
