@@ -32,6 +32,39 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _validate_paper_parity(
+    num_samples: int,
+    acquisition_types: list[str],
+    *,
+    context: str = "Paper Parity",
+) -> None:
+    """Validate dataset meets paper parity requirements (223 samples, 0 TSE).
+
+    Args:
+        num_samples: Number of samples in the dataset.
+        acquisition_types: List of acquisition type strings.
+        context: Context string for error messages.
+
+    Raises:
+        typer.Exit: If validation fails.
+    """
+    if num_samples != 223:
+        err_console.print(f"[red]{context} Error: Expected 223 samples, got {num_samples}.[/red]")
+        err_console.print(
+            "Re-run 'arc-meshchop download --paper-parity' to ensure correct dataset."
+        )
+        raise typer.Exit(1)
+
+    # Use exact matching for TSE detection (not substring)
+    tse_count = sum(1 for acq in acquisition_types if acq == "turbo_spin_echo")
+    if tse_count > 0:
+        err_console.print(f"[red]{context} Error: Found {tse_count} TSE samples.[/red]")
+        err_console.print("Re-run 'arc-meshchop download --paper-parity' to exclude TSE.")
+        raise typer.Exit(1)
+
+    console.print(f"[yellow]{context} mode: Verified 223 samples (0 TSE).[/yellow]")
+
+
 @app.command()
 def version() -> None:
     """Show version information."""
@@ -304,21 +337,7 @@ def train(
 
     # Verify paper parity counts
     if paper_parity:
-        if len(image_paths) != 223:
-            err_console.print(
-                f"[red]Paper Parity Error: Expected 223 samples, got {len(image_paths)}.[/red]"
-            )
-            err_console.print(
-                "Re-run 'arc-meshchop download --paper-parity' to ensure correct dataset."
-            )
-            raise typer.Exit(1)
-        # Check TSE
-        tse_count = sum(1 for acq in acquisition_types if "turbo" in str(acq) or "tse" in str(acq))
-        if tse_count > 0:
-            err_console.print(f"[red]Paper Parity Error: Found {tse_count} TSE samples.[/red]")
-            err_console.print("Re-run 'arc-meshchop download --paper-parity' to exclude TSE.")
-            raise typer.Exit(1)
-        console.print("[yellow]Paper parity mode: Verified 223 samples (0 TSE).[/yellow]")
+        _validate_paper_parity(len(image_paths), acquisition_types)
 
     # Safe to cast after validation (no None values)
     mask_paths: list[Path] = cast(list[Path], mask_paths_raw)
@@ -655,25 +674,10 @@ def experiment(
         with info_path.open() as f:
             dataset_info = json.load(f)
 
-        num_samples = len(dataset_info["image_paths"])
-        if num_samples != 223:
-            err_console.print(
-                f"[red]Paper Parity Error: Expected 223 samples, got {num_samples}.[/red]"
-            )
-            err_console.print(
-                "Re-run 'arc-meshchop download --paper-parity' to ensure correct dataset."
-            )
-            raise typer.Exit(1)
-
-        # Check TSE
-        acq_types = dataset_info["acquisition_types"]
-        tse_count = sum(1 for acq in acq_types if "turbo" in str(acq) or "tse" in str(acq))
-        if tse_count > 0:
-            err_console.print(f"[red]Paper Parity Error: Found {tse_count} TSE samples.[/red]")
-            err_console.print("Re-run 'arc-meshchop download --paper-parity' to exclude TSE.")
-            raise typer.Exit(1)
-
-        console.print("[yellow]Paper parity mode: Verified 223 samples (0 TSE).[/yellow]")
+        _validate_paper_parity(
+            len(dataset_info["image_paths"]),
+            dataset_info["acquisition_types"],
+        )
 
     # Cast variant to Literal type for ExperimentConfig
     model_variant = cast(Literal["meshnet_5", "meshnet_16", "meshnet_26"], variant)

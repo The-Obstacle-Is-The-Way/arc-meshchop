@@ -35,18 +35,15 @@ Verified against OpenNeuro ds004884 commit `0885e5939abc8f909a175dd782369b7afc3f
 
 **5 TSE samples (should be excluded for paper parity):**
 
-| Subject | Session | OpenNeuro Path |
-|---------|---------|----------------|
-| sub-M2002 | ses-1441 | `derivatives/lesion_masks/sub-M2002/ses-1441/anat/sub-M2002_ses-
-1441_acq-tse3_run-4_T2w_desc-lesion_mask.nii.gz` |
-| sub-M2007 | ses-6330 | `derivatives/lesion_masks/sub-M2007/ses-6330/anat/sub-M2007_ses-
-6330_acq-tse3_run-5_T2w_desc-lesion_mask.nii.gz` |
-| sub-M2015 | ses-409 | `derivatives/lesion_masks/sub-M2015/ses-409/anat/sub-M2015_ses-40
-9_acq-tse3_run-5_T2w_desc-lesion_mask.nii.gz` |
-| sub-M2016 | ses-2721 | `derivatives/lesion_masks/sub-M2016/ses-2721/anat/sub-M2016_ses-
-2721_acq-tse3_run-4_T2w_desc-lesion_mask.nii.gz` |
-| sub-M2017 | ses-1141 | `derivatives/lesion_masks/sub-M2017/ses-1141/anat/sub-M2017_ses-
-1141_acq-tse3_run-5_T2w_desc-lesion_mask.nii.gz` |
+| Subject | Session | Acquisition |
+|---------|---------|-------------|
+| sub-M2002 | ses-1441 | `acq-tse3` |
+| sub-M2007 | ses-6330 | `acq-tse3` |
+| sub-M2015 | ses-409 | `acq-tse3` |
+| sub-M2016 | ses-2721 | `acq-tse3` |
+| sub-M2017 | ses-1141 | `acq-tse3` |
+
+Full OpenNeuro paths follow pattern: `derivatives/lesion_masks/{subject}/{session}/anat/{subject}_{session}_acq-tse3_run-*_T2w_desc-lesion_mask.nii.gz`
 
 **1 missing SPACE mask:**
 - `sub-M2039/ses-1222` has `acq-spc3` T2w but NO lesion mask directory
