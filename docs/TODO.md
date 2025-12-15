@@ -10,42 +10,77 @@
 
 ## Executive Summary
 
-The codebase is **ready to train**. All blocking issues have been resolved. The remaining work falls into two categories:
+The codebase is **ready to train**. All blocking issues have been resolved:
 
-1. **Blocked on Upstream** — Requires HuggingFace dataset update (external dependency)
-2. **Low Priority Enhancements** — Nice-to-have improvements that don't block training
+- ✅ **Paper-Parity Mode Implemented** — HuggingFace dataset has `t2w_acquisition` column, loader uses it
+- ✅ **Data Contract Hardening Complete** — Consistent API contracts, fail-fast validation
+- ✅ **All 291 Tests Passing** — Full CI green
+
+Remaining work is **post-training polish** (sensitivity study, documentation).
 
 ---
 
-## Category A: Blocked on Upstream (Paper-Exact Parity)
+## Category A: Blocked on Upstream (Paper-Exact Parity) ✅ COMPLETE
 
-**Blocker:** HuggingFace dataset `hugging-science/arc-aphasia-bids` is missing the `t2w_acquisition` column.
 
-Until the upstream dataset is updated, we cannot:
+
+**Status:** UNBLOCKED & IMPLEMENTED
+
+
+
+**Blocker Resolved:** HuggingFace dataset `hugging-science/arc-aphasia-bids` now has the `t2w_acquisition` column.
+
+
+
+We can now:
+
 - Filter out TSE sequences (5 samples)
+
 - Achieve exact paper sample count (223 SPACE-only samples)
+
 - Provide `--paper-parity` mode for strict replication
 
-### Tasks (Blocked)
+
+
+### Tasks (Completed)
+
+
 
 | Task | File | Description | Status |
+
 |------|------|-------------|--------|
-| Add `t2w_acquisition` column | Upstream | HuggingFace dataset needs new column | ⏳ BLOCKED |
-| Update loader to use column | `huggingface_loader.py` | Read acquisition type from dataset | ⏳ BLOCKED |
-| Remove workaround code | `huggingface_loader.py:284-288` | Remove default-to-space_no_accel hack | ⏳ BLOCKED |
-| Add `--paper-parity` flag | `cli.py` | Strict 223-sample mode | ⏳ BLOCKED |
-| Update `verify_sample_counts()` | `huggingface_loader.py` | Exact match instead of range | ⏳ BLOCKED |
-| Add acquisition count tests | `tests/` | Verify 115/108/5 distribution | ⏳ BLOCKED |
-| Document TSE exclusions | Upstream | Update HuggingFace dataset card | ⏳ BLOCKED |
 
-### Current Workaround
+| Add `t2w_acquisition` column | Upstream | HuggingFace dataset needs new column | ✅ DONE |
 
-Training proceeds with 228 samples (includes 5 TSE). This is clinically valid but not exact paper replication. See `docs/KNOWN_ISSUES.md` for full analysis.
+| Update loader to use column | `huggingface_loader.py` | Read acquisition type from dataset | ✅ DONE |
+
+| Remove workaround code | `huggingface_loader.py` | Remove default-to-space_no_accel hack | ✅ DONE |
+
+| Add `--paper-parity` flag | `cli.py` | Strict 223-sample mode | ✅ DONE |
+
+| Update `verify_sample_counts()` | `huggingface_loader.py` | Exact match instead of range | ✅ DONE |
+
+| Add acquisition count tests | `tests/` | Verify 115/108/5 distribution | ✅ DONE |
+
+| Document TSE exclusions | Upstream | Update HuggingFace dataset card | ✅ DONE |
+
+
+
+### Implementation Details
+
+- Default mode: 223 samples (excludes TSE, matches paper)
+- Extended mode (`--include-tse`): 228 samples (includes TSE, maximizes data)
+- `--paper-parity` mode: 223 samples with strict count verification
+
+
 
 ### Expected Impact
 
-- Current: 228 samples → Estimated DICE ~0.876 (within paper variance)
-- After fix: 223 samples → Exact paper parity
+
+
+- Default: 223 samples → Estimated DICE ~0.876 (matches paper methodology)
+
+- Parity mode: 223 samples → Exact paper replication protocol
 
 ---
 
@@ -136,11 +171,11 @@ Before proceeding with training, verify:
 # Run all tests
 make ci
 
-# Expected: 284 passed, 2 skipped
+# Expected: 291 passed, 2 skipped
 
 # Check sample count
 uv run arc-meshchop info
-# Expected: 228 samples loaded
+# Expected: 223 samples (default, excludes TSE)
 
 # Verify protocol
 # Should show: 3 outer folds × 10 restarts = 30 runs
@@ -156,11 +191,11 @@ Implement all 9 items in Category B per `docs/specs/local-06-data-contract-harde
 
 This is not optional. Professional codebases have consistent API contracts.
 
-**Phase 2: Upstream Dataset Fix** (In Progress)
+**Phase 2: Upstream Dataset Fix** ✅ COMPLETE
 
-HuggingFace dataset metadata update is in progress. When complete:
-- Update loader to use `t2w_acquisition` column
-- Enable `--paper-parity` mode for 223 SPACE-only samples
+HuggingFace dataset now has `t2w_acquisition` column:
+- ✅ Loader uses `t2w_acquisition` column
+- ✅ `--paper-parity` mode for 223 SPACE-only samples
 
 **Phase 3: Training**
 

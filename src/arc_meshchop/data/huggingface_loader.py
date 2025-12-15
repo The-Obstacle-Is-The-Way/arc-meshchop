@@ -238,6 +238,7 @@ def load_arc_from_huggingface(
     require_lesion_mask: bool = True,
     strict_t2w: bool = True,
     verify_counts: bool = True,
+    paper_parity: bool = False,
 ) -> ARCDatasetInfo:
     """Load ARC dataset from HuggingFace Hub.
 
@@ -259,6 +260,8 @@ def load_arc_from_huggingface(
         strict_t2w: If True, only use T2w (no FLAIR fallback). Default True for paper parity.
         verify_counts: If True, verify sample counts match paper (224 = 115 + 109).
             Raises ValueError if counts don't match.
+        paper_parity: If True, use strict mode to match reproducible paper cohort (223 samples).
+            Excludes TSE and enforces strict counts.
 
     Returns:
         ARCDatasetInfo with all sample metadata and paths.
@@ -328,9 +331,10 @@ def load_arc_from_huggingface(
 
     # Verify sample counts match paper requirements
     if verify_counts:
-        # Use non-strict mode by default (accepts 224-228 samples)
-        # HuggingFace dataset has more samples than paper due to missing acquisition metadata
-        verify_sample_counts(samples, strict=False)
+        # Pass paper_parity flag to verification logic
+        # If paper_parity=True, strict is implied
+        strict_verification = paper_parity
+        verify_sample_counts(samples, strict=strict_verification, paper_parity=paper_parity)
         logger.info("Sample count verification passed: %d samples", len(samples))
 
     return ARCDatasetInfo(samples=samples)
@@ -406,16 +410,10 @@ def _extract_samples(
         # Determine acquisition type from BIDS filename (primary) or metadata (fallback)
         acq_type = _determine_acquisition_type(row, image_path)
 
-        # NOTE: HuggingFace dataset doesn't include acquisition type metadata.
-        # When acquisition is unknown, we accept the sample but mark it.
-        # The paper used 224 samples (115 space_2x + 109 space_no_accel, excluding 5 TSE).
-        # HuggingFace has 228 samples with lesion masks, so we accept ~4 extra samples.
-        # This is acceptable for training - the TSE sequences are similar enough.
         if acq_type == "unknown":
+            # Just count them, but don't reclassify.
+            # Upstream fix provides t2w_acquisition, so unknowns should be rare/non-existent.
             unknown_acq_count += 1
-            # Accept with "unknown" - we can't filter without metadata
-            # Set to space_no_accel as default (most conservative)
-            acq_type = "space_no_accel"
 
         # Apply acquisition type filters (only effective when metadata available)
         if exclude_turbo_spin_echo and acq_type == "turbo_spin_echo":
@@ -462,28 +460,26 @@ def _extract_samples(
 
     if unknown_acq_count > 0:
         logger.warning(
-            "HuggingFace dataset missing acquisition metadata for %d samples. "
-            "Accepting all samples with lesion masks (paper used 224, we have %d). "
-            "See KNOWN_ISSUES.md for details.",
+            "Found %d samples with unknown acquisition type. "
+            "This implies missing metadata in the source dataset.",
             unknown_acq_count,
-            len(samples),
         )
 
     return samples
 
 
 def _determine_acquisition_type(row: dict, file_path: str | None) -> str:
-    """Determine acquisition type from BIDS filename or row metadata.
+    """Determine acquisition type from row metadata or BIDS filename.
+
+    Priority:
+    1. t2w_acquisition column (upstream fix - now available)
+    2. BIDS filename parsing (fallback for local data)
+    3. Legacy acquisition/acq columns (backwards compat)
 
     FROM PAPER:
     - SPACE with 2x in-plane acceleration: 115 scans
     - SPACE without acceleration: 109 scans
     - Turbo-spin echo (excluded): 5 scans
-
-    Acquisition type is inferred from BIDS filename conventions:
-    - `acq-space2x` or `acq-SPACE2x` -> space_2x
-    - `acq-space` or `acq-SPACE` (no acceleration) -> space_no_accel
-    - `acq-tse` or `acq-TSE` -> turbo_spin_echo
 
     Args:
         row: Dataset row with metadata.
@@ -492,7 +488,12 @@ def _determine_acquisition_type(row: dict, file_path: str | None) -> str:
     Returns:
         Acquisition type string.
     """
-    # Primary method: Parse BIDS filename for acquisition entity
+    # PRIMARY: Use t2w_acquisition column from upstream fix
+    t2w_acq = row.get("t2w_acquisition")
+    if t2w_acq and t2w_acq in ("space_2x", "space_no_accel", "turbo_spin_echo"):
+        return t2w_acq
+
+    # FALLBACK: Parse BIDS filename for acquisition entity
     # BIDS format: sub-XXX_ses-X_acq-XXXXX_T2w.nii.gz
     if file_path:
         file_path_lower = str(file_path).lower()
@@ -509,7 +510,7 @@ def _determine_acquisition_type(row: dict, file_path: str | None) -> str:
             elif "space" in acq_value:
                 return "space_no_accel"
 
-    # Fallback: Check row metadata (less reliable)
+    # LEGACY: Check old acquisition/acq columns
     acq = row.get("acquisition", row.get("acq", ""))
     acq_str = str(acq).lower()
 
@@ -521,7 +522,6 @@ def _determine_acquisition_type(row: dict, file_path: str | None) -> str:
         return "space_no_accel"
 
     # UNKNOWN - Must be verified manually
-    # In parity mode, this should raise an error
     return "unknown"
 
 
@@ -628,7 +628,11 @@ def _get_nifti_path(
     return None
 
 
-def verify_sample_counts(samples: list[ARCSample], strict: bool = False) -> None:
+def verify_sample_counts(
+    samples: list[ARCSample],
+    strict: bool = False,
+    paper_parity: bool = False,
+) -> None:
     """Verify sample counts match paper requirements.
 
     FROM PAPER Section 2:
@@ -638,12 +642,12 @@ def verify_sample_counts(samples: list[ARCSample], strict: bool = False) -> None
     - Total: 224 usable scans
 
     NOTE: HuggingFace dataset has 228 lesion masks (4 more than paper).
-    This is likely because TSE sequences are included (can't filter without metadata).
-    We accept this discrepancy for training purposes.
+    NOTE: OpenNeuro is missing 1 SPACE mask, so "paper parity" with available data is 223 samples.
 
     Args:
         samples: List of extracted samples.
         strict: If True, raise error on count mismatch. If False, just warn.
+        paper_parity: If True, expect exactly 223 samples (available subset of paper).
 
     Raises:
         ValueError: If strict=True and counts don't match expected values.
@@ -663,12 +667,28 @@ def verify_sample_counts(samples: list[ARCSample], strict: bool = False) -> None
         total,
     )
 
-    # Paper expected values
-    expected_total_paper = 224
+    # Paper expected values (what the paper claims)
+    expected_paper_claim = 224
+    # Actual reproducible paper subset (missing 1 mask on OpenNeuro)
+    expected_reproducible_parity = 223
     # HuggingFace dataset has more samples with lesion masks
     expected_total_huggingface = 228
-    # Acceptable range
-    min_acceptable = expected_total_paper
+
+    if paper_parity:
+        # Strict mode for paper parity
+        expected = expected_reproducible_parity
+        if total != expected:
+            raise ValueError(
+                f"Paper parity mode: expected {expected} samples (available subset of paper), "
+                f"got {total} (space_2x={space_2x_count}, space_no_accel={space_no_accel_count}). "
+                "Ensure TSE is excluded and dataset is up to date."
+            )
+        if tse_count > 0:
+            raise ValueError(f"Paper parity mode: Found {tse_count} TSE samples. Must be 0.")
+        return
+
+    # Normal mode (flexible)
+    min_acceptable = expected_reproducible_parity
     max_acceptable = expected_total_huggingface
 
     if total < min_acceptable:
@@ -687,26 +707,25 @@ def verify_sample_counts(samples: list[ARCSample], strict: bool = False) -> None
             max_acceptable,
         )
 
-    if total != expected_total_paper:
+    if total != expected_paper_claim and total != expected_reproducible_parity:
         logger.warning(
-            "Sample count differs from paper: got %d, paper used %d. "
-            "This is expected when loading from HuggingFace (missing acquisition metadata). "
-            "Training will proceed with all available samples.",
+            "Sample count differs from paper claim (224): got %d. "
+            "This is expected if including extra samples found on HuggingFace.",
             total,
-            expected_total_paper,
         )
 
     if tse_count > 0:
-        logger.warning(
+        logger.info(
             "Found %d TSE samples (paper excluded these). "
-            "Including them due to missing acquisition metadata.",
+            "Included because exclude_turbo_spin_echo=False or they are useful extra data.",
             tse_count,
         )
 
-    # In strict mode, require exact paper counts
-    if strict and total != expected_total_paper:
+    # In strict mode (non-parity), likely expecting specific experimental setup
+    if strict and total not in (expected_paper_claim, expected_reproducible_parity):
         raise ValueError(
-            f"Strict mode: expected {expected_total_paper} samples (paper count), got {total}"
+            f"Strict mode: expected {expected_paper_claim} or "
+            f"{expected_reproducible_parity} samples, got {total}"
         )
 
 
