@@ -44,7 +44,7 @@ if hasattr(nifti_obj, "get_fdata"):
 ```
 
 Each `nib.save()` writes a gzipped NIfTI (~50-200MB uncompressed → ~20-80MB gzipped).
-Cost: ~2-5 seconds per file × 2 files per sample × 222 samples = ~15-40 minutes.
+Cost: ~2-5 seconds per file × 2 files per sample × 223 samples = ~15-40 minutes.
 
 ### 2. Lesion Volume Computation (`huggingface_loader.py:732-762`)
 
@@ -55,7 +55,7 @@ def _compute_lesion_volume_from_nifti(nifti_obj):
 ```
 
 Each `get_fdata()` decompresses and loads the full 256³ volume (~134MB float64).
-Cost: ~1-3 seconds per sample × 222 samples = ~4-10 minutes.
+Cost: ~1-3 seconds per sample × 223 samples = ~4-10 minutes.
 
 ### 3. No Short-Circuit on Re-run
 
