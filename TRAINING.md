@@ -89,13 +89,15 @@ restarts = 10  # Train 10 times, pick best
 
 ```text
 ARC Dataset (hugging-science/arc-aphasia-bids)
-├── Full dataset: 230 subjects, 902 sessions, 447 T2w
-├── Paper training subset: 224 samples (after filtering)
+├── Full dataset: 230 subjects, 902 sessions, 228 lesion masks
+├── SPACE subset: 223 samples (after filtering)
 │   ├── 115 SPACE with 2x acceleration
-│   └── 109 SPACE without acceleration
+│   └── 108 SPACE without acceleration
 │   (Excludes 5 turbo-spin-echo sequences)
 ├── 256³ @ 1mm isotropic (after preprocessing)
 └── Expert lesion masks for each sample
+
+Note: Paper cites 224 (115+109), but OpenNeuro has 223 (115+108).
 ```
 
 ---
@@ -104,9 +106,9 @@ ARC Dataset (hugging-science/arc-aphasia-bids)
 
 | Component | Estimate |
 |-----------|----------|
-| Samples | 224 |
+| Samples | 223 |
 | Epochs | 50 |
-| Total iterations | 11,200 |
+| Total iterations | 11,150 |
 | Time per iteration | ~2-5 seconds on M1 |
 | **Total time** | **6-15 hours** |
 | Restarts | ×10 (but you pick best early) |
@@ -159,7 +161,7 @@ This BEATS:
 │                     WHAT WE'RE DOING                            │
 ├─────────────────────────────────────────────────────────────────┤
 │  Model:      MeshNet-26 (147K params)                           │
-│  Dataset:    ARC (224 samples from 230-subject dataset)         │
+│  Dataset:    ARC (223 SPACE samples from 230-subject dataset)   │
 │  Hardware:   M1 MacBook (MPS backend)                           │
 │  Time:       ~6-15 hours                                        │
 │  Target:     DICE 0.876                                         │

@@ -236,10 +236,10 @@ arc-meshchop/
 - CrossEntropy: weights=[0.5, 1.0], label_smoothing=0.01
 - Batch size: 1 (full 256³ volumes)
 
-### Data (from paper)
+### Data (OpenNeuro ground truth)
 
-- 224 samples (115 SPACE-2x + 109 SPACE)
-- Exclude turbo-spin-echo
+- 223 samples (115 SPACE-2x + 108 SPACE)
+- Exclude turbo-spin-echo (5 samples)
 - Require lesion masks
 - 256³ @ 1mm isotropic
 

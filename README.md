@@ -41,11 +41,11 @@ uv run arc-meshchop train --channels 26 --epochs 50
 
 ## Hardware Requirements
 
-| Platform | Device | Works? | Notes |
-|----------|--------|--------|-------|
-| **Mac M1/M2/M3/M4** | MPS | ✅ | FP32, ~6-15 hours |
-| **Linux/Windows** | CUDA | ✅ | FP16, faster |
-| **Any** | CPU | ✅ | Slow but works |
+| Platform | Device | Notes |
+|----------|--------|-------|
+| **Mac M1/M2/M3/M4** | MPS | FP32, ~6-15 hours (tested) |
+| **Linux/Windows** | CUDA | FP16, faster (untested) |
+| **Any** | CPU | Slow (untested) |
 
 **This model is designed to be tiny.** You don't need an A100.
 
@@ -67,14 +67,14 @@ Parameters: 147,474  (~0.6 MB)
 
 We use the [Aphasia Recovery Cohort (ARC)](https://huggingface.co/datasets/hugging-science/arc-aphasia-bids):
 
-| Metric | Full Dataset | Paper Subset |
+| Metric | Full Dataset | SPACE Subset |
 |--------|--------------|--------------|
 | Subjects | 230 | — |
 | Sessions | 902 | — |
-| T2w scans | 447 | 224 |
-| With lesion masks | — | 224 |
+| T2w scans | 447 | — |
+| Lesion masks | 228 | 223 |
 
-The paper filters to 224 samples: 115 SPACE-2x + 109 SPACE (no turbo-spin-echo).
+We use **223 SPACE samples** (115 SPACE-2x + 108 SPACE no-accel), excluding 5 TSE samples to match the paper methodology. Note: paper cites 224, but OpenNeuro has 223 (likely typo).
 
 ## Documentation
 

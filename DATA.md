@@ -95,7 +95,7 @@ This is the canonical pattern for domain-specific HuggingFace extensions.
                             │  arc_meshchop.data.  │
                             │  huggingface_loader  │
                             │                      │
-                            │  • 224 samples       │
+                            │  • 223 samples       │
                             │  • SPACE only        │
                             │  • With masks        │
                             └──────────────────────┘
@@ -178,7 +178,7 @@ logger.info(
 )
 ```
 
-This is different from the **paper subset** (224 samples) which we filter ourselves.
+This is different from the **SPACE subset** (223 samples) which we filter ourselves.
 
 ---
 
@@ -195,13 +195,14 @@ The paper uses a specific subset of ARC:
 │        │                                                                        │
 │        ├── SPACE 2x acceleration ─────────────────────► 115 samples             │
 │        │                                                                        │
-│        ├── SPACE no acceleration ─────────────────────► 109 samples             │
+│        ├── SPACE no acceleration ─────────────────────► 108 samples             │
 │        │                                                                        │
 │        ├── Turbo Spin Echo (TSE) ─────────────────────► EXCLUDED (5)            │
 │        │                                                                        │
 │        └── No lesion mask ────────────────────────────► EXCLUDED                │
 │                                                                                 │
-│   Paper training subset: 224 samples (115 + 109)                                │
+│   SPACE training subset: 223 samples (115 + 108)                                │
+│   Note: Paper cites 224 (115+109), OpenNeuro has 223 (115+108).                 │
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -214,14 +215,14 @@ from arc_meshchop.data.huggingface_loader import load_arc_from_huggingface
 # Load with paper-specific filtering
 arc_data = load_arc_from_huggingface(
     include_space_2x=True,         # 115 scans
-    include_space_no_accel=True,   # 109 scans
+    include_space_no_accel=True,   # 108 scans
     exclude_turbo_spin_echo=True,  # Remove 5 TSE
     require_lesion_mask=True,      # Must have ground truth
-    verify_counts=True,            # Enforce 224 total
+    verify_counts=True,            # Enforce 223 total
 )
 
-# Returns ARCDatasetInfo with 224 samples
-print(len(arc_data))  # 224
+# Returns ARCDatasetInfo with 223 samples
+print(len(arc_data))  # 223
 ```
 
 ---
@@ -231,11 +232,11 @@ print(len(arc_data))  # 224
 | Source | Count | Purpose |
 |--------|-------|---------|
 | `ARC_VALIDATION_CONFIG` | 230 subjects, 902 sessions, 447 T2w | Full dataset integrity |
-| Paper training subset | 224 samples (115 + 109) | What we actually train on |
+| SPACE training subset | 223 samples (115 + 108) | What we actually train on |
 
 These are **different numbers** for **different purposes**:
 - 230/902/447 = "Does the full dataset look right?"
-- 224 = "How many samples are we training on?"
+- 223 = "How many samples are we training on?"
 
 ---
 
@@ -275,7 +276,7 @@ uv run arc-meshchop download
 # 3. Data goes to data/arc/cache/ (project-local)
 ls data/arc/cache/
 
-# 4. Train (loads from cache, filters to 224 samples)
+# 4. Train (loads from cache, filters to 223 samples)
 uv run arc-meshchop train --channels 26 --epochs 50
 ```
 
@@ -290,7 +291,7 @@ You can! But you'd need to:
 2. Filter for SPACE acquisition only
 3. Exclude turbo-spin-echo
 4. Require lesion masks
-5. Verify you got 224 samples
+5. Verify you got 223 samples
 
 Our `load_arc_from_huggingface()` does all this for you.
 
@@ -304,7 +305,7 @@ Yes. Set `HF_HOME=/your/path` before running any commands.
 
 ### Q: How big is the dataset?
 
-The full ARC dataset is ~50GB. Our filtered subset uses ~25GB (224 T2w + masks).
+The full ARC dataset is ~50GB. Our filtered subset uses ~25GB (223 T2w + masks).
 
 ### Q: Can I use this offline?
 

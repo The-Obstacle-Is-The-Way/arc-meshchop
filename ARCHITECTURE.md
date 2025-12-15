@@ -33,10 +33,10 @@
 │  │  Paper-Specific Filtering (OUR CODE)                                │  │
 │  │  • strict_t2w=True (no FLAIR fallback)                              │  │
 │  │  • include_space_2x=True (115 scans)                                │  │
-│  │  • include_space_no_accel=True (109 scans)                          │  │
+│  │  • include_space_no_accel=True (108 scans)                          │  │
 │  │  • exclude_turbo_spin_echo=True (5 scans excluded)                  │  │
 │  │  • require_lesion_mask=True                                         │  │
-│  │  → Output: 224 training samples                                     │  │
+│  │  → Output: 223 training samples                                     │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
 │                                    │                                      │
 │                                    ▼                                      │
@@ -148,17 +148,17 @@ pull validation constants for sanity checking.
 - Load ARC dataset from HuggingFace Hub via `datasets.load_dataset()`
 - Apply paper-specific filtering (SPACE sequences only, exclude TSE)
 - Extract file paths and metadata into domain models
-- Verify sample counts match paper (224 = 115 + 109)
+- Verify sample counts match OpenNeuro (223 = 115 + 108)
 
 **Key functions:**
 ```python
 load_arc_from_huggingface(
     repo_id="hugging-science/arc-aphasia-bids",
     include_space_2x=True,       # 115 scans
-    include_space_no_accel=True, # 109 scans
+    include_space_no_accel=True, # 108 scans
     exclude_turbo_spin_echo=True,# 5 excluded
     strict_t2w=True,             # No FLAIR fallback
-    verify_counts=True,          # Enforce 224 total
+    verify_counts=True,          # Enforce 223 total
 ) -> ARCDatasetInfo
 ```
 
@@ -187,7 +187,7 @@ class ARCDatasetInfo:
 | Source | Count | Purpose |
 |--------|-------|---------|
 | **ARC_VALIDATION_CONFIG** | 230 subjects, 902 sessions, 447 t2w | Full dataset integrity |
-| **Paper training subset** | 224 samples (115 + 109) | MeshNet training data |
+| **SPACE training subset** | 223 samples (115 + 108) | MeshNet training data |
 
 These are DIFFERENT. The paper uses a SUBSET of ARC:
 - Only T2w images (no other modalities)
@@ -217,7 +217,7 @@ These behaviors ensure paper replication accuracy:
 
 1. **`strict_t2w=True`**: Only use T2w images, NO FLAIR fallback
 2. **Filename-first acquisition parsing**: Extract `acq-*` from BIDS filename
-3. **Paper-specific count verification**: 224 = 115 + 109 (hardcoded, not from bids_hub)
+3. **OpenNeuro count verification**: 223 = 115 + 108 (paper cites 224, likely typo)
 4. **Unknown acquisition rejection**: Skip unrecognizable acquisition types
 
 ---
@@ -260,7 +260,7 @@ With this architecture:
 1. **Data loading** is correct: Uses `datasets.load_dataset()` with paper-specific filtering
 2. **bids_hub integration** is correct: Only validation constants, not upload utilities
 3. **Specs are aligned**: All docs now accurately reflect the architecture
-4. **Tests pass**: 276 tests verify the implementation
+4. **Tests pass**: 293 tests verify the implementation
 
 ```bash
 # Full training run (paper methodology)
