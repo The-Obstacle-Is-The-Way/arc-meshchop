@@ -10,7 +10,7 @@
 
 ### ✅ IMPLEMENTED (Archived)
 
-All core specs have been implemented and are archived in `_archived/`:
+All core specs have been implemented and are archived in `../archive/specs/`:
 
 | Phase | Document | Status |
 |-------|----------|--------|
@@ -28,13 +28,14 @@ Local specs (also archived):
 - local-02-training-cli.md
 - local-03-experiment-runner.md
 - local-04-paper-parity-validation.md
+- local-05-upstream-dataset-fixes.md
+- local-06-data-contract-hardening.md
 
 ### 🚧 PENDING IMPLEMENTATION
 
 | Phase | Document | Description | Blocker |
 |-------|----------|-------------|---------|
 | 7 | [07-huggingface-spaces.md](./07-huggingface-spaces.md) | HF Spaces deployment | Needs trained model |
-| L5 | [local/local-05-upstream-dataset-fixes.md](./local/local-05-upstream-dataset-fixes.md) | Dataset acquisition metadata | Blocked on upstream |
 
 ---
 
@@ -80,7 +81,7 @@ Layer Structure:
 All blockers resolved:
 - ✅ Acquisition type metadata (`t2w_acquisition`) now available in HuggingFace dataset
 - ✅ Paper parity mode (`--paper-parity`) for strict 223-sample replication
-- ✅ 291 tests passing
+- ✅ 293 tests passing
 
 ---
 
@@ -104,4 +105,4 @@ uv run arc-meshchop train --variant meshnet-26 --epochs 50
 
 ## Last Updated
 
-2025-12-13
+2025-12-15
