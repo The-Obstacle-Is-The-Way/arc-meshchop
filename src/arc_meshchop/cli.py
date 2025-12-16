@@ -15,6 +15,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from arc_meshchop.utils.paths import resolve_dataset_path
+
 app = typer.Typer(
     name="arc-meshchop",
     help="MeshNet stroke lesion segmentation - paper replication",
@@ -322,9 +324,12 @@ def train(
     with info_path.open() as f:
         dataset_info = json.load(f)
 
-    image_paths = [Path(p) for p in dataset_info["image_paths"]]
+    data_dir = data_dir.resolve()
+    image_paths = [
+        cast(Path, resolve_dataset_path(data_dir, p)) for p in dataset_info["image_paths"]
+    ]
     # Handle None values in mask_paths (BUG-001 fix: aligned lists may have None)
-    mask_paths_raw = [Path(p) if p else None for p in dataset_info["mask_paths"]]
+    mask_paths_raw = [resolve_dataset_path(data_dir, p) for p in dataset_info["mask_paths"]]
     lesion_volumes = dataset_info["lesion_volumes"]
     acquisition_types = dataset_info["acquisition_types"]
 
@@ -488,9 +493,12 @@ def evaluate(
     with info_path.open() as f:
         dataset_info = json.load(f)
 
-    image_paths = [Path(p) for p in dataset_info["image_paths"]]
+    data_dir = data_dir.resolve()
+    image_paths = [
+        cast(Path, resolve_dataset_path(data_dir, p)) for p in dataset_info["image_paths"]
+    ]
     # Handle None values in mask_paths (BUG-001 fix: --no-require-mask may have None entries)
-    mask_paths_raw = [Path(p) if p else None for p in dataset_info["mask_paths"]]
+    mask_paths_raw = [resolve_dataset_path(data_dir, p) for p in dataset_info["mask_paths"]]
     lesion_volumes = dataset_info["lesion_volumes"]
     acquisition_types = dataset_info["acquisition_types"]
 
@@ -662,6 +670,14 @@ def experiment(
     """
     from arc_meshchop.experiment.config import ExperimentConfig
     from arc_meshchop.experiment.runner import run_experiment
+
+    # Validate variant
+    valid_variants = {"meshnet_5", "meshnet_16", "meshnet_26"}
+    if variant not in valid_variants:
+        err_console.print(
+            f"[red]Invalid variant '{variant}'. Must be one of: {valid_variants}[/red]"
+        )
+        raise typer.Exit(1)
 
     # Verify paper parity counts if requested
     if paper_parity:

@@ -25,10 +25,12 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import torch
+
+from arc_meshchop.utils.paths import resolve_dataset_path
 
 if TYPE_CHECKING:
     from arc_meshchop.experiment.config import ExperimentConfig
@@ -445,7 +447,7 @@ class ExperimentRunner:
         from arc_meshchop.data.huggingface_loader import parse_dataset_info, validate_masks_present
 
         (
-            image_paths,
+            image_paths_str,
             mask_paths_raw,
             lesion_volumes,
             acquisition_types,
@@ -456,9 +458,14 @@ class ExperimentRunner:
         )
 
         # Validate masks (experiment requires ground truth for all samples)
-        mask_paths = validate_masks_present(
+        mask_paths_str = validate_masks_present(
             mask_paths_raw, context="Experiment training/evaluation"
         )
+
+        # Resolve paths
+        data_dir = self.config.data_dir.resolve()
+        image_paths = [cast(Path, resolve_dataset_path(data_dir, p)) for p in image_paths_str]
+        mask_paths = [cast(Path, resolve_dataset_path(data_dir, p)) for p in mask_paths_str]
 
         # Generate OUTER-only splits (no inner folds needed for replication)
         quintiles = [get_lesion_quintile(v) for v in lesion_volumes]
@@ -478,8 +485,8 @@ class ExperimentRunner:
         # Create FULL outer-train dataset (no validation holdout)
         # Paper: "Train on full outer-train for 50 fixed epochs"
         train_dataset = ARCDataset(
-            image_paths=[Path(image_paths[i]) for i in train_indices],
-            mask_paths=[Path(mask_paths[i]) for i in train_indices],
+            image_paths=[image_paths[i] for i in train_indices],
+            mask_paths=[mask_paths[i] for i in train_indices],
             cache_dir=self.config.data_dir / "cache" / f"outer_{outer_fold}" / "train",
         )
 
@@ -518,8 +525,8 @@ class ExperimentRunner:
 
         # Immediately evaluate on outer-test
         test_dataset = ARCDataset(
-            image_paths=[Path(image_paths[i]) for i in test_indices],
-            mask_paths=[Path(mask_paths[i]) for i in test_indices],
+            image_paths=[image_paths[i] for i in test_indices],
+            mask_paths=[mask_paths[i] for i in test_indices],
             cache_dir=self.config.data_dir / "cache" / f"outer_{outer_fold}" / "test",
         )
 
