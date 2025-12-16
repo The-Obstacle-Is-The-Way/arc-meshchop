@@ -2,7 +2,7 @@
 
 > **Severity:** P3 (misconfiguration risk)
 >
-> **Status:** OPEN
+> **Status:** FIXED (fix/bug-005-006-007)
 >
 > **Date:** 2025-12-16
 >

@@ -96,7 +96,11 @@ class ARCDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         """
         # Include source path and preprocessing params in hash
         image_path = str(self.image_paths[idx])
-        params = f"{image_path}|{self.target_shape}|{self.target_spacing}|{self.preprocess}"
+        mask_path = str(self.mask_paths[idx])
+        params = (
+            f"{image_path}|{mask_path}|{self.target_shape}|"
+            f"{self.target_spacing}|{self.preprocess}"
+        )
         param_hash = hashlib.md5(params.encode()).hexdigest()[:8]
         return f"sample_{idx:04d}_{param_hash}.npz"
 
