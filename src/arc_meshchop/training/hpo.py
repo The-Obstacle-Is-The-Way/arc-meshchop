@@ -16,7 +16,7 @@ import logging
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from arc_meshchop.training.config import HPOConfig, TrainingConfig
 
@@ -216,6 +216,7 @@ def run_hpo_trial(
         dataset_info = json.load(f)
 
     from arc_meshchop.data.huggingface_loader import parse_dataset_info, validate_masks_present
+    from arc_meshchop.utils.paths import resolve_dataset_path
 
     (
         image_paths_raw,
@@ -227,11 +228,16 @@ def run_hpo_trial(
         dataset_info,
         context="Hyperparameter optimization",
     )
-    image_paths = [Path(p) for p in image_paths_raw]
+
+    # Resolve paths relative to data_dir (BUG-006 fix)
+    data_dir_resolved = data_dir.resolve()
+    image_paths = [cast(Path, resolve_dataset_path(data_dir_resolved, p)) for p in image_paths_raw]
     mask_paths_validated = validate_masks_present(
         mask_paths_raw, context="Hyperparameter optimization"
     )
-    mask_paths = [Path(p) for p in mask_paths_validated]
+    mask_paths = [
+        cast(Path, resolve_dataset_path(data_dir_resolved, p)) for p in mask_paths_validated
+    ]
 
     # Generate CV splits
     quintiles = [get_lesion_quintile(v) for v in lesion_volumes]
