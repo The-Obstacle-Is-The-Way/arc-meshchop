@@ -43,7 +43,7 @@ uv run arc-meshchop train --channels 26 --epochs 50
 
 | Platform | Device | Notes |
 |----------|--------|-------|
-| **Mac M1/M2/M3/M4** | MPS | FP32, ~6-15 hours (tested) |
+| **Mac M1/M2/M3/M4** | MPS | FP32, see [TRAIN-001](docs/issues/TRAIN-001-runtime-estimates.md) |
 | **Linux/Windows** | CUDA | FP16, faster (untested) |
 | **Any** | CPU | Slow (untested) |
 
@@ -100,7 +100,7 @@ make ci                          # Run all checks
 uv run arc-meshchop download     # Get dataset
 uv run arc-meshchop train        # Train model
 uv run arc-meshchop evaluate     # Evaluate checkpoint
-uv run arc-meshchop export       # Export to ONNX
+# Export: use arc_meshchop.export Python API (not CLI)
 ```
 
 ## Target Performance
@@ -125,7 +125,7 @@ arc-meshchop/
 │   ├── export/         # ONNX export
 │   └── cli.py          # Command-line interface
 ├── tests/              # Test suite
-├── configs/            # Hydra configuration
+├── configs/            # Configuration presets (unused)
 └── docs/               # Documentation
 ```
 

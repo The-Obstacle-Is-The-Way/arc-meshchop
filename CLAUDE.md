@@ -102,7 +102,7 @@ Tests use TDD approach with synthetic data:
 | `src/arc_meshchop/data/dataset.py` | ARC dataset loader |
 | `src/arc_meshchop/training/trainer.py` | Training loop |
 | `src/arc_meshchop/evaluation/metrics.py` | DICE, AVD, MCC |
-| `configs/` | Hydra configuration |
+| `configs/` | Configuration presets (unused) |
 
 ## Reference Implementations
 
