@@ -55,12 +55,6 @@ Deep technical documentation extracted from the paper:
 
 ---
 
-## Archive
-
-Historical documentation preserved for reference: [`archive/README.md`](archive/README.md)
-
----
-
 ## For Claude Code
 
 Agent instructions are in [`CLAUDE.md`](../CLAUDE.md) at the repo root.
