@@ -81,7 +81,7 @@ Layer Structure:
 All blockers resolved:
 - ✅ Acquisition type metadata (`t2w_acquisition`) now available in HuggingFace dataset
 - ✅ Paper parity mode (`--paper-parity`) for strict 223-sample replication
-- ✅ 293 tests passing
+- ✅ All tests passing (run `make ci` to verify)
 
 ---
 
@@ -103,6 +103,15 @@ uv run arc-meshchop train --variant meshnet-26 --epochs 50
 
 ---
 
+## Documentation
+
+For detailed technical documentation, see:
+- [docs/reference/](../reference/) - Deep technical reference
+- [docs/REPRODUCIBILITY.md](../REPRODUCIBILITY.md) - Paper replication protocol
+- [docs/TROUBLESHOOTING.md](../TROUBLESHOOTING.md) - Common issues
+
+---
+
 ## Last Updated
 
-2025-12-15
+2025-12-16

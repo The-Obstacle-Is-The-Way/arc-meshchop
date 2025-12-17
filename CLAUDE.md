@@ -113,8 +113,17 @@ Tests use TDD approach with synthetic data:
 
 ## Documentation
 
-- `docs/research/` - Paper extraction and verified facts
-- `docs/specs/` - TDD specification documents
+- `README.md` - Project overview and quick start
+- `ARCHITECTURE.md` - System architecture and data flow
+- `TRAINING.md` - Training guide
+- `DATA.md` - Data pipeline
+- `CONTRIBUTING.md` - Developer guide
+- `docs/README.md` - Documentation index
+- `docs/reference/` - Deep technical reference (MeshNet, dataset, training, metrics)
+- `docs/REPRODUCIBILITY.md` - Exact paper replication protocol
+- `docs/TROUBLESHOOTING.md` - Common issues and solutions
+- `docs/specs/` - Future work specifications
+- `docs/archive/` - Historical documentation (bugs, research notes)
 - `_literature/markdown/stroke_lesion_segmentation/` - The actual paper
 
 ## Important Notes
