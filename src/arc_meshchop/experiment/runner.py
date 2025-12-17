@@ -14,7 +14,7 @@ This means:
 - Fixed epochs (50) - no validation-based early stopping needed
 - 10 restarts for stability/averaging
 
-See NESTED-CV-PROTOCOL.md for full analysis.
+See docs/archive/bugs/NESTED-CV-PROTOCOL.md for full analysis.
 """
 
 from __future__ import annotations
@@ -175,7 +175,7 @@ class ExperimentResult:
     # - Table 1: Wilcoxon signed-rank test requires paired per-subject data
     # - Std values (0.005-0.02) consistent with per-subject variation, not fold variation
     #
-    # See docs/bugs/BUG-002-metric-aggregation.md for full analysis.
+    # See docs/archive/bugs/BUG-002-metric-aggregation.md for full analysis.
 
     def _get_pooled_scores(self, metric: str) -> list[float]:
         """Get pooled per-subject scores across all outer folds.
@@ -629,7 +629,7 @@ class ExperimentRunner:
             ],
             "summary": {
                 # PRIMARY: Test metrics computed from POOLED per-subject scores (n≈224)
-                # This matches paper protocol - see docs/bugs/BUG-002-metric-aggregation.md
+                # This matches paper protocol - see docs/archive/bugs/BUG-002-metric-aggregation.md
                 "test_mean_dice": result.test_mean_dice,
                 "test_std_dice": result.test_std_dice,
                 "test_median_dice": result.test_median_dice,  # For Figure 2

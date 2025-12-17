@@ -86,7 +86,7 @@ We can now:
 
 ## Category B: Data Contract Hardening ✅ COMPLETE
 
-**SPEC:** `docs/specs/local-06-data-contract-hardening.md`
+**SPEC:** `docs/archive/specs/local-06-data-contract-hardening.md`
 **Commit:** `d940415` (2025-12-14)
 
 All data contract hardening has been implemented and verified (288 tests pass).
@@ -187,7 +187,7 @@ uv run arc-meshchop info
 
 **Phase 1: Data Contract Hardening** (Before Training)
 
-Implement all 9 items in Category B per `docs/specs/local-06-data-contract-hardening.md`.
+Implement all 9 items in Category B per `docs/archive/specs/local-06-data-contract-hardening.md`.
 
 This is not optional. Professional codebases have consistent API contracts.
 
@@ -213,15 +213,15 @@ uv run arc-meshchop experiment --outer-folds 3 --restarts 10
 
 ## References
 
-- `docs/specs/local-06-data-contract-hardening.md` — **THE SPEC** (implement this)
-- `docs/bugs/BUG-001-audit-findings.md` — Detailed audit findings
-- `docs/bugs/BUG-002-metric-aggregation.md` — Metric aggregation fix
-- `docs/bugs/BUG-003-runner-issues.md` — Runner implementation fixes
-- `docs/bugs/BUG-004-mask-paths-alignment.md` — Problem analysis (superseded by spec)
-- `docs/bugs/NESTED-CV-PROTOCOL.md` — Protocol analysis
-- `docs/BLOCKERS.md` — Original blockers (all resolved)
-- `docs/KNOWN_ISSUES.md` — Dataset discrepancy analysis
-- `docs/specs/local-05-upstream-dataset-fixes.md` — Upstream fix spec
+- `docs/archive/specs/local-06-data-contract-hardening.md` — **THE SPEC** (implement this)
+- `docs/archive/bugs/BUG-001-audit-findings.md` — Detailed audit findings
+- `docs/archive/bugs/BUG-002-metric-aggregation.md` — Metric aggregation fix
+- `docs/archive/bugs/BUG-003-runner-issues.md` — Runner implementation fixes
+- `docs/archive/bugs/BUG-004-mask-paths-alignment.md` — Problem analysis (superseded by spec)
+- `docs/archive/bugs/NESTED-CV-PROTOCOL.md` — Protocol analysis
+- `docs/archive/BLOCKERS.md` — Original blockers (all resolved)
+- `docs/archive/legacy/KNOWN_ISSUES.md` — Dataset discrepancy analysis
+- `docs/archive/specs/local-05-upstream-dataset-fixes.md` — Upstream fix spec
 
 ---
 

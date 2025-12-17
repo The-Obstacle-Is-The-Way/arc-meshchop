@@ -43,7 +43,7 @@ uv run arc-meshchop train --channels 26 --epochs 50
 
 | Platform | Device | Notes |
 |----------|--------|-------|
-| **Mac M1/M2/M3/M4** | MPS | FP32, ~6-15 hours (tested) |
+| **Mac M1/M2/M3/M4** | MPS | FP32, see [TRAIN-001](docs/issues/TRAIN-001-runtime-estimates.md) |
 | **Linux/Windows** | CUDA | FP16, faster (untested) |
 | **Any** | CPU | Slow (untested) |
 
@@ -84,8 +84,12 @@ We use **223 SPACE samples** (115 SPACE-2x + 108 SPACE no-accel), excluding 5 TS
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System design and data flow |
 | [DATA.md](DATA.md) | Data pipeline explained |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
-| [docs/specs/](docs/specs/) | TDD specifications |
-| [docs/research/](docs/research/) | Paper analysis |
+| [docs/README.md](docs/README.md) | Documentation index |
+| [docs/reference/](docs/reference/) | Deep technical reference |
+| [docs/REPRODUCIBILITY.md](docs/REPRODUCIBILITY.md) | Exact paper replication protocol |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
+| [docs/specs/](docs/specs/) | Future work specifications |
+| [docs/archive/](docs/archive/) | Historical documentation |
 
 ## Commands
 
@@ -100,7 +104,7 @@ make ci                          # Run all checks
 uv run arc-meshchop download     # Get dataset
 uv run arc-meshchop train        # Train model
 uv run arc-meshchop evaluate     # Evaluate checkpoint
-uv run arc-meshchop export       # Export to ONNX
+# Export: use arc_meshchop.export Python API (not CLI)
 ```
 
 ## Target Performance
@@ -125,7 +129,7 @@ arc-meshchop/
 │   ├── export/         # ONNX export
 │   └── cli.py          # Command-line interface
 ├── tests/              # Test suite
-├── configs/            # Hydra configuration
+├── configs/            # Configuration presets (unused)
 └── docs/               # Documentation
 ```
 

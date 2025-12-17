@@ -7,9 +7,9 @@
 | Component | Specification |
 |-----------|---------------|
 | Framework | PyTorch |
-| Configuration | Hydra |
+| Configuration | Typer CLI (paper used Hydra) |
 | GPU | NVIDIA A100 (80 GB) |
-| Precision | Half-precision (FP16) |
+| Precision | Half-precision (FP16) on CUDA, FP32 on MPS/CPU |
 | Memory management | Layer checkpointing (for large models) |
 
 ---
@@ -145,27 +145,37 @@ Instead of hard targets [0, 1], uses soft targets [0.005, 0.995]:
 
 ## Precision and Memory Management
 
-### Half-Precision Training (FP16)
+### Mixed-Precision Training
+
+Our implementation uses cross-platform `torch.amp` (not CUDA-only `torch.cuda.amp`):
 
 ```python
-scaler = torch.cuda.amp.GradScaler()
+# Cross-platform AMP (works on CUDA, MPS, CPU)
+from torch.amp import autocast, GradScaler
 
-with torch.cuda.amp.autocast():
+device_type = "cuda"  # or "mps" or "cpu"
+scaler = GradScaler(device_type) if device_type == "cuda" else None
+
+with autocast(device_type=device_type, enabled=(device_type == "cuda")):
     output = model(input)
     loss = loss_fn(output, target)
 
-scaler.scale(loss).backward()
-scaler.step(optimizer)
-scaler.update()
+if scaler:
+    scaler.scale(loss).backward()
+    scaler.step(optimizer)
+    scaler.update()
+else:
+    loss.backward()
+    optimizer.step()
 ```
 
-**Benefits:**
-- 2x memory reduction
-- Faster computation on tensor cores
-- Enables full 256³ volume training
+**Platform behavior:**
+- **CUDA:** FP16 with GradScaler (2x memory reduction, tensor cores)
+- **MPS (Apple Silicon):** FP32 (MPS doesn't benefit from FP16 for this workload)
+- **CPU:** FP32 fallback
 
 **Cautions:**
-- May need gradient scaling to prevent underflow
+- GradScaler only used on CUDA (prevents underflow)
 - Some operations may need FP32 (BatchNorm accumulation)
 
 ### Layer Checkpointing (Gradient Checkpointing)
@@ -192,30 +202,39 @@ x = checkpoint(layer2, x)
 ## Training Loop Pseudocode
 
 ```python
+# Cross-platform device setup (must be defined first)
+device_type = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
+device = torch.device(device_type)
+use_amp = device_type == "cuda"
+scaler = torch.amp.GradScaler(device_type) if use_amp else None
+
 model = MeshNet(channels=26, num_classes=2)
-model = model.cuda().half()  # FP16
+model = model.to(device)  # Use .to(device) instead of .cuda().half() - autocast handles precision
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=3e-5, eps=1e-4)
 scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.001, total_steps=50*len(train_loader), pct_start=0.01)
-criterion = torch.nn.CrossEntropyLoss(weight=torch.tensor([0.5, 1.0]).cuda(), label_smoothing=0.01)
-scaler = torch.cuda.amp.GradScaler()
+criterion = torch.nn.CrossEntropyLoss(weight=torch.tensor([0.5, 1.0]).to(device), label_smoothing=0.01)
 
 for epoch in range(50):
     model.train()
     for batch in train_loader:
         images, masks = batch
-        images = images.cuda().half()
-        masks = masks.cuda().long()
+        images = images.to(device)
+        masks = masks.to(device).long()
 
         optimizer.zero_grad()
 
-        with torch.cuda.amp.autocast():
+        with torch.amp.autocast(device_type=device_type, enabled=use_amp):
             outputs = model(images)
             loss = criterion(outputs, masks.squeeze(1))
 
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
+        if scaler:
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            loss.backward()
+            optimizer.step()
         scheduler.step()
 
     # Validation
@@ -283,7 +302,7 @@ while not experiment.is_done:
 
 - Set random seeds for reproducibility
 - Save model checkpoints at best validation DICE
-- Log all hyperparameters with Hydra/MLflow/W&B
+- Log all hyperparameters (we use Typer CLI args; paper used Hydra)
 - Document exact preprocessing steps
 
 ---

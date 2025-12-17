@@ -203,10 +203,12 @@ arc-meshchop/
 │   │   └── onnx_export.py         # ONNX export
 │   └── cli.py                     # Typer CLI
 ├── tests/                         # Mirror src/ structure
-├── configs/                       # Hydra config
+├── configs/                       # Configuration presets (unused)
 └── docs/
-    ├── specs/                     # TDD specifications
-    └── research/                  # Paper analysis
+    ├── README.md                  # Documentation index
+    ├── reference/                 # Deep technical reference
+    ├── specs/                     # Future work specifications
+    └── archive/                   # Historical documentation
 ```
 
 ---

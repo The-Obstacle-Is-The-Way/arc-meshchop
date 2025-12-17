@@ -206,7 +206,7 @@ arc-meshchop download --output data/arc
 arc-meshchop train --data-dir data/arc --output outputs/train
 
 # Step 3: Evaluate
-arc-meshchop evaluate outputs/train/best.pt --data-dir data/arc
+arc-meshchop evaluate outputs/train/fold_0_0/best.pt --data-dir data/arc
 ```
 
 ---
@@ -260,7 +260,7 @@ With this architecture:
 1. **Data loading** is correct: Uses `datasets.load_dataset()` with paper-specific filtering
 2. **bids_hub integration** is correct: Only validation constants, not upload utilities
 3. **Specs are aligned**: All docs now accurately reflect the architecture
-4. **Tests pass**: 293 tests verify the implementation
+4. **Tests pass**: CI verifies the implementation (`make ci`)
 
 ```bash
 # Full training run (paper methodology)

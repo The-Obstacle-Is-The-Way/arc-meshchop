@@ -102,18 +102,16 @@ Note: Paper cites 224 (115+109), but OpenNeuro has 223 (115+108).
 
 ---
 
-## Training Time Estimate (M1 MacBook)
+## Training Time Estimate
 
-| Component | Estimate |
-|-----------|----------|
-| Samples | 223 |
-| Epochs | 50 |
-| Total iterations | 11,150 |
-| Time per iteration | ~2-5 seconds on M1 |
-| **Total time** | **6-15 hours** |
-| Restarts | ×10 (but you pick best early) |
+See [TRAIN-001: Runtime Estimates](docs/issues/TRAIN-001-runtime-estimates.md) for detailed timing by hardware.
 
-You can start with 1 restart, see results, then do more if needed.
+| Platform | Per-Run | Full (30 runs) |
+|----------|---------|----------------|
+| MPS (M-series Mac) | ~62 hours | ~77 days |
+| RTX 4090 (est.) | ~6-12 hours | ~7-15 days |
+
+**Note:** You only need **1 run** to get a working model. The 30-run protocol is for paper-style statistical reporting.
 
 ---
 
@@ -131,7 +129,7 @@ arc-meshchop train \
   --epochs 50
 
 # Step 3: Evaluate
-arc-meshchop evaluate outputs/meshnet26/best.pt \
+arc-meshchop evaluate outputs/meshnet26/fold_0_0/best.pt \
   --data-dir data/arc
 ```
 
@@ -163,7 +161,7 @@ This BEATS:
 │  Model:      MeshNet-26 (147K params)                           │
 │  Dataset:    ARC (223 SPACE samples from 230-subject dataset)   │
 │  Hardware:   M1 MacBook (MPS backend)                           │
-│  Time:       ~6-15 hours                                        │
+│  Time:       ~62 hours/run (MPS)                                │
 │  Target:     DICE 0.876                                         │
 │                                                                 │
 │  NOT training U-MAMBA, MedNeXt, or any other big model.         │
