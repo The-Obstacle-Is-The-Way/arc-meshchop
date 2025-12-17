@@ -193,9 +193,9 @@ all = [
 arc-meshchop = "arc_meshchop.cli:app"
 
 [project.urls]
-Homepage = "https://github.com/username/arc-meshchop"
-Repository = "https://github.com/username/arc-meshchop"
-Issues = "https://github.com/username/arc-meshchop/issues"
+Homepage = "https://github.com/The-Obstacle-Is-The-Way/arc-meshchop"
+Repository = "https://github.com/The-Obstacle-Is-The-Way/arc-meshchop"
+Issues = "https://github.com/The-Obstacle-Is-The-Way/arc-meshchop/issues"
 
 [build-system]
 requires = ["hatchling"]

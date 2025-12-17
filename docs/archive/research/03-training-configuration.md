@@ -202,17 +202,18 @@ x = checkpoint(layer2, x)
 ## Training Loop Pseudocode
 
 ```python
+# Cross-platform device setup (must be defined first)
+device_type = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
+device = torch.device(device_type)
+use_amp = device_type == "cuda"
+scaler = torch.amp.GradScaler(device_type) if use_amp else None
+
 model = MeshNet(channels=26, num_classes=2)
-model = model.cuda().half()  # FP16
+model = model.to(device)  # Use .to(device) instead of .cuda().half() - autocast handles precision
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=3e-5, eps=1e-4)
 scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.001, total_steps=50*len(train_loader), pct_start=0.01)
 criterion = torch.nn.CrossEntropyLoss(weight=torch.tensor([0.5, 1.0]).to(device), label_smoothing=0.01)
-
-# Cross-platform AMP setup
-device_type = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
-use_amp = device_type == "cuda"
-scaler = torch.amp.GradScaler(device_type) if use_amp else None
 
 for epoch in range(50):
     model.train()

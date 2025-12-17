@@ -16,7 +16,7 @@ External review identified 4 issues in runner.py. **All have been fixed and veri
 | P1 - Restart aggregation | ✅ FIXED | 2025-12-14 |
 | P1 - Runner overwrites final.pt | ✅ FIXED | 2025-12-14 |
 | P2 - Cache explosion | ✅ FIXED | 2025-12-14 |
-| P2 - Optional validation mode | ⚠️ NOT DONE (low priority) |
+| P2 - Optional validation mode | ⚠️ NOT DONE | Low priority |
 
 ---
 
