@@ -2,11 +2,25 @@
 
 > **Purpose:** Phased plan to audit existing docs, extract valuable content, and create Google DeepMind-quality canonical documentation.
 >
-> **Status:** PLANNING (v3 - Post Senior Review)
+> **Status:** IMPLEMENTED (v3 - Executed)
 >
 > **Date:** 2025-12-16
 
 ---
+
+## Implementation Status (Executed)
+
+This plan is fully implemented in the `chore/docs-audit` branch.
+
+**Canonical docs (SSOT):**
+- Repo root: `README.md`, `ARCHITECTURE.md`, `TRAINING.md`, `DATA.md`, `CONTRIBUTING.md`, `CLAUDE.md`, `CHANGELOG.md`, `SECURITY.md`
+- `docs/`: `docs/README.md`, `docs/reference/`, `docs/REPRODUCIBILITY.md`, `docs/TROUBLESHOOTING.md`, `docs/specs/`, `docs/issues/`, `docs/archive/`
+
+Start at `docs/README.md` for navigation.
+
+## Historical Context
+
+The remainder of this file preserves the pre-implementation audit and the phased execution plan for reference.
 
 ## Executive Summary
 
@@ -554,9 +568,12 @@ A developer should be able to:
 
 ---
 
-## Next Steps
+## Maintenance
 
-1. **Approve this plan**
-2. **Execute Phase 1** - Fix stale references (can do immediately)
-3. **Execute Phases 2-5** sequentially
-4. **Final review** before merging
+Canonical docs live in the repo root and `docs/` (start at `docs/README.md`).
+
+Maintenance guidelines:
+1. Prefer updating canonical docs over adding new one-off files.
+2. Preserve future-work specs (especially `docs/specs/07-huggingface-spaces.md`) as-is.
+3. Archive historical docs under `docs/archive/` instead of deleting them.
+4. When code changes, run `make ci` and scan for stale references (e.g., `rg "docs/research|arc-meshchop export|Hydra"`).

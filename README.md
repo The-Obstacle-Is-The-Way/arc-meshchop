@@ -84,8 +84,12 @@ We use **223 SPACE samples** (115 SPACE-2x + 108 SPACE no-accel), excluding 5 TS
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System design and data flow |
 | [DATA.md](DATA.md) | Data pipeline explained |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
-| [docs/specs/](docs/specs/) | TDD specifications |
-| [docs/research/](docs/research/) | Paper analysis |
+| [docs/README.md](docs/README.md) | Documentation index |
+| [docs/reference/](docs/reference/) | Deep technical reference |
+| [docs/REPRODUCIBILITY.md](docs/REPRODUCIBILITY.md) | Exact paper replication protocol |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
+| [docs/specs/](docs/specs/) | Future work specifications |
+| [docs/archive/](docs/archive/) | Historical documentation |
 
 ## Commands
 

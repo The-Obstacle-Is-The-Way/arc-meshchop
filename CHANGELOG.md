@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated checkpoint paths in examples to match fold-scoped output
 - Consolidated runtime estimates to TRAIN-001 issue
 
-## [0.1.0] - 2024-12-16
+## [0.1.0] - 2025-12-14
 
 ### Added
 - Initial MeshNet paper replication implementation

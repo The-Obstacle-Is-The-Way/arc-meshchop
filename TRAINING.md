@@ -161,7 +161,7 @@ This BEATS:
 │  Model:      MeshNet-26 (147K params)                           │
 │  Dataset:    ARC (223 SPACE samples from 230-subject dataset)   │
 │  Hardware:   M1 MacBook (MPS backend)                           │
-│  Time:       ~6-15 hours                                        │
+│  Time:       ~62 hours/run (MPS)                                │
 │  Target:     DICE 0.876                                         │
 │                                                                 │
 │  NOT training U-MAMBA, MedNeXt, or any other big model.         │

@@ -64,7 +64,7 @@ This gives 228 total samples (223 + 5 TSE).
 ### "Checkpoint not found"
 
 ```
-FileNotFoundError: No such file: experiments/fold_0_restart_0/final.pt
+FileNotFoundError: No such file: experiments/meshnet26/fold_0_restart_0/final.pt
 ```
 
 **Fix:** Training did not complete. Check:
@@ -163,7 +163,7 @@ rm -rf data/arc/cache/   # Clear (will regenerate)
 ### Results Don't Match Paper
 
 Check these in order:
-1. **Sample count**: `wc -l data/arc/dataset_info.json` should show 223 samples
+1. **Sample count**: `uv run python -c "import json; print(json.load(open('data/arc/dataset_info.json'))['num_samples'])"` should print `223`
 2. **Preprocessing**: 256^3 @ 1mm isotropic (no skull stripping)
 3. **Hyperparameters**: lr=0.001, weight_decay=3e-5, eps=1e-4
 4. **Loss weights**: [0.5, 1.0] for [background, lesion]
@@ -188,12 +188,23 @@ Run all 30 training runs for statistically meaningful results.
 Export is available via Python API only, not CLI:
 
 ```python
-from arc_meshchop.export import export_to_onnx
+from pathlib import Path
 
-export_to_onnx(
-    checkpoint_path="experiments/fold_0_restart_5/final.pt",
-    output_dir="exports/",
+import torch
+
+from arc_meshchop.export import export_to_onnx
+from arc_meshchop.models import meshnet_26
+
+checkpoint = torch.load(
+    "outputs/train/fold_0_0/best.pt",
+    map_location="cpu",
+    weights_only=True,
 )
+
+model = meshnet_26()
+model.load_state_dict(checkpoint["model_state_dict"])
+
+export_to_onnx(model, Path("exports/meshnet_26.onnx"))
 ```
 
 ---
