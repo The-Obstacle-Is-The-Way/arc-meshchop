@@ -184,13 +184,29 @@ def download(
         output_dir.mkdir(parents=True, exist_ok=True)
         info_path = output_dir / "dataset_info.json"
 
+        # Store paths relative to output_dir for portability.
+        # Note: Some older dataset_info.json files stored repo-root relative paths like
+        # "data/arc/cache/...". New downloads should use "cache/...".
+        output_dir_resolved = output_dir.resolve()
+
+        def _rel_path(p: Path) -> str:
+            try:
+                return str(p.resolve().relative_to(output_dir_resolved))
+            except ValueError:
+                # If the path isn't under output_dir (unexpected), fall back to raw string.
+                return str(p)
+
+        def _rel_path_optional(p: Path | None) -> str | None:
+            return _rel_path(p) if p is not None else None
+
         # Write aligned lists - mask_paths must align 1:1 with image_paths
         # (BUG-001: arc_info.mask_paths filters out None, causing misalignment)
-        mask_paths_aligned = [str(s.mask_path) if s.mask_path else None for s in arc_info.samples]
+        image_paths_rel = [_rel_path(s.image_path) for s in arc_info.samples]
+        mask_paths_aligned = [_rel_path_optional(s.mask_path) for s in arc_info.samples]
 
         dataset_info = {
             "num_samples": len(arc_info),
-            "image_paths": [str(p) for p in arc_info.image_paths],
+            "image_paths": image_paths_rel,
             "mask_paths": mask_paths_aligned,
             "lesion_volumes": arc_info.lesion_volumes,
             "acquisition_types": arc_info.acquisition_types,
@@ -324,28 +340,28 @@ def train(
     with info_path.open() as f:
         dataset_info = json.load(f)
 
-    data_dir = data_dir.resolve()
-    image_paths = [
-        cast(Path, resolve_dataset_path(data_dir, p)) for p in dataset_info["image_paths"]
-    ]
-    # Handle None values in mask_paths (BUG-001 fix: aligned lists may have None)
-    mask_paths_raw = [resolve_dataset_path(data_dir, p) for p in dataset_info["mask_paths"]]
-    lesion_volumes = dataset_info["lesion_volumes"]
-    acquisition_types = dataset_info["acquisition_types"]
+    from arc_meshchop.data.huggingface_loader import parse_dataset_info, validate_masks_present
 
-    # Verify all samples have masks for training (training requires masks)
-    none_mask_count = sum(1 for m in mask_paths_raw if m is None)
-    if none_mask_count > 0:
-        err_console.print(f"[red]Error: {none_mask_count} samples missing lesion masks.[/red]")
-        err_console.print("Training requires lesion masks. Re-run download with --require-mask.")
-        raise typer.Exit(1)
+    try:
+        (
+            image_paths_str,
+            mask_paths_raw,
+            lesion_volumes,
+            acquisition_types,
+            _subject_ids,
+        ) = parse_dataset_info(dataset_info, context="Training")
+        mask_paths_str = validate_masks_present(mask_paths_raw, context="Training")
+    except ValueError as e:
+        err_console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from e
+
+    data_dir = data_dir.resolve()
+    image_paths = [cast(Path, resolve_dataset_path(data_dir, p)) for p in image_paths_str]
+    mask_paths = [cast(Path, resolve_dataset_path(data_dir, p)) for p in mask_paths_str]
 
     # Verify paper parity counts
     if paper_parity:
         _validate_paper_parity(len(image_paths), acquisition_types)
-
-    # Safe to cast after validation (no None values)
-    mask_paths: list[Path] = cast(list[Path], mask_paths_raw)
 
     console.print(f"Loaded {len(image_paths)} samples from {info_path}")
 
@@ -493,14 +509,24 @@ def evaluate(
     with info_path.open() as f:
         dataset_info = json.load(f)
 
+    from arc_meshchop.data.huggingface_loader import parse_dataset_info
+
+    try:
+        (
+            image_paths_str,
+            mask_paths_str_or_none,
+            lesion_volumes,
+            acquisition_types,
+            _subject_ids,
+        ) = parse_dataset_info(dataset_info, context="Evaluation")
+    except ValueError as e:
+        err_console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from e
+
     data_dir = data_dir.resolve()
-    image_paths = [
-        cast(Path, resolve_dataset_path(data_dir, p)) for p in dataset_info["image_paths"]
-    ]
+    image_paths = [cast(Path, resolve_dataset_path(data_dir, p)) for p in image_paths_str]
     # Handle None values in mask_paths (BUG-001 fix: --no-require-mask may have None entries)
-    mask_paths_raw = [resolve_dataset_path(data_dir, p) for p in dataset_info["mask_paths"]]
-    lesion_volumes = dataset_info["lesion_volumes"]
-    acquisition_types = dataset_info["acquisition_types"]
+    mask_paths_raw = [resolve_dataset_path(data_dir, p) for p in mask_paths_str_or_none]
 
     # Generate splits to get test indices
     quintiles = [get_lesion_quintile(v) for v in lesion_volumes]

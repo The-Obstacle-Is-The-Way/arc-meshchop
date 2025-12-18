@@ -1,16 +1,19 @@
 """Cross-validation split generation with stratification.
 
-FROM PAPER (Section 2):
-"Hyperparameter optimization was conducted on the inner folds of the first
-outer fold. The optimized hyperparameters were then applied to train models
-on all outer folds."
+Protocol (FROM PAPER Section 2):
+    "Hyperparameter optimization was conducted on the inner folds of the first
+    outer fold. The optimized hyperparameters were then applied to train models
+    on all outer folds."
 
-This means:
-- 3 outer folds for train/test
-- Inner folds were only used for HP search (first outer fold)
-- For replication with known HPs, we use outer folds only
+Structure:
+    - 3 outer folds: 67% train / 33% test per fold
+    - 3 inner folds per outer: Only used for HP search (first outer fold)
+    - Stratification: Lesion size quintile x acquisition type (SPACE, SPACE-2x)
 
-See docs/archive/bugs/NESTED-CV-PROTOCOL.md for full analysis.
+For replication (using paper's published HPs):
+    - Use outer folds only via `generate_outer_cv_splits()`
+    - Train on FULL outer-train (no inner validation holdout)
+    - Evaluate on outer-test after fixed 50 epochs
 """
 
 from __future__ import annotations

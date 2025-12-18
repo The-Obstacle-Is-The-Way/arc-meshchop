@@ -11,17 +11,22 @@ from typing import Literal
 class ExperimentConfig:
     """Configuration for full experiment.
 
-    FROM PAPER Section 2:
-    "Hyperparameter optimization was conducted on the inner folds of the first
-    outer fold. The optimized hyperparameters were then applied to train models
-    on all outer folds."
+    Protocol (FROM PAPER Section 2):
+        "Hyperparameter optimization was conducted on the inner folds of the first
+        outer fold. The optimized hyperparameters were then applied to train models
+        on all outer folds."
 
-    This means:
-    - HP search: Only on Outer Fold 1 (we skip this, using paper's final HPs)
-    - Final evaluation: 3 outer folds x 10 restarts = 30 runs
-    - Training data: Full outer-train (67% of total), not inner-train (44%)
+    Implementation:
+        - HP search: Skipped (using paper's published hyperparameters)
+        - Evaluation: 3 outer folds x 10 restarts = 30 runs
+        - Training data: FULL outer-train (67% of dataset)
+        - Test data: Outer-test (33% of dataset)
+        - Epochs: Fixed 50 (no early stopping)
 
-    See docs/archive/bugs/NESTED-CV-PROTOCOL.md for full analysis.
+    Target metrics (FROM PAPER Table 1):
+        - DICE: 0.876 ± 0.016
+        - AVD: 0.245 ± 0.036
+        - MCC: 0.760 ± 0.030
     """
 
     # Data
