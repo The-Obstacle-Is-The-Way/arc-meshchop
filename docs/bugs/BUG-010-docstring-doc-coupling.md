@@ -8,7 +8,9 @@
 
 ## Symptom
 
-Module docstrings reference documentation file paths:
+Module docstrings reference documentation file paths.
+
+**Before (historical - fixed in this PR):**
 
 ```python
 # src/arc_meshchop/experiment/runner.py:17
@@ -172,10 +174,10 @@ Accept the maintenance burden. Every doc reorganization requires code changes.
 **P4 - Low Priority** because:
 - No runtime impact
 - No correctness impact
-- Only affects developer experience
-- Only manifests during doc reorganization
+- Affects developer experience only
+- Manifests only during doc reorganization
 
-But this IS a code smell and should be addressed for long-term maintainability.
+This is a code smell that should be addressed for long-term maintainability.
 
 ---
 
@@ -190,6 +192,28 @@ All `See docs/REPRODUCIBILITY.md` references removed. Docstrings now contain com
 | `runner.py` | "See docs/REPRODUCIBILITY.md" | Complete protocol + hyperparameters inline |
 | `config.py` | "See docs/REPRODUCIBILITY.md" | Complete protocol + target metrics inline |
 | `splits.py` | "See docs/REPRODUCIBILITY.md" | Complete CV structure inline |
+
+**Example: splits.py after fix:**
+
+```python
+"""Cross-validation split generation with stratification.
+
+Protocol (FROM PAPER Section 2):
+    "Hyperparameter optimization was conducted on the inner folds of the first
+    outer fold. The optimized hyperparameters were then applied to train models
+    on all outer folds."
+
+Structure:
+    - 3 outer folds: 67% train / 33% test per fold
+    - 3 inner folds per outer: Only used for HP search (first outer fold)
+    - Stratification: Lesion size quintile x acquisition type (SPACE, SPACE-2x)
+
+For replication (using paper's published HPs):
+    - Use outer folds only via `generate_outer_cv_splits()`
+    - Train on FULL outer-train (no inner validation holdout)
+    - Evaluate on outer-test after fixed 50 epochs
+"""
+```
 
 The `docs/REPRODUCIBILITY.md` file now serves as a **user guide** (how to run experiments) rather than a developer reference that code points to.
 

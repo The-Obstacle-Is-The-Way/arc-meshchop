@@ -27,7 +27,8 @@ def resolve_dataset_path(data_dir: Path, path: str | None) -> Path | None:
     # Backwards compatibility: some dataset_info.json files store repo-root relative
     # paths like "data/arc/cache/...". In that case, the correct base is a parent
     # of `data_dir` (e.g., the project root).
-    for parent in data_dir.parents:
+    # Limit to 5 levels to avoid excessive traversal in deeply nested structures.
+    for parent in list(data_dir.parents)[:5]:
         candidate = (parent / p).resolve()
         if candidate.exists():
             return candidate
