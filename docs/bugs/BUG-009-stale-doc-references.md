@@ -33,12 +33,11 @@ Either:
 2. Update references to point at existing docs:
    - `docs/REPRODUCIBILITY.md`
    - `docs/reference/training.md`
+3. Remove internal doc-path references entirely by making docstrings self-contained (preferred; see `docs/bugs/BUG-010-docstring-doc-coupling.md`).
 
 ---
 
 ## Resolution
 
-Updated all references to point to `docs/REPRODUCIBILITY.md`:
-- `src/arc_meshchop/data/splits.py`: Updated docstring
-- `src/arc_meshchop/experiment/config.py`: Updated docstring
-- `src/arc_meshchop/experiment/runner.py`: Updated module docstring and comments
+- Removed all stale `docs/archive/bugs/*` references from code.
+- Removed remaining internal doc-path references by making docstrings self-contained (see `docs/bugs/BUG-010-docstring-doc-coupling.md`).
