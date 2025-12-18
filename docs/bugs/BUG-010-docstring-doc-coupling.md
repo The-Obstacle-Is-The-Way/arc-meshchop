@@ -1,7 +1,7 @@
 # BUG-010: Docstrings Coupled to Documentation File Paths (P4)
 
 **Priority:** P4 (Code smell, no runtime impact)
-**Status:** Open - Awaiting Senior Review
+**Status:** Fixed
 **Impact:** Maintenance burden, stale references when docs reorganized
 
 ---
@@ -176,6 +176,26 @@ Accept the maintenance burden. Every doc reorganization requires code changes.
 - Only manifests during doc reorganization
 
 But this IS a code smell and should be addressed for long-term maintainability.
+
+---
+
+## Resolution
+
+Applied **Option A: Make Docstrings Self-Contained**.
+
+All `See docs/REPRODUCIBILITY.md` references removed. Docstrings now contain complete protocol information inline:
+
+| File | Before | After |
+|------|--------|-------|
+| `runner.py` | "See docs/REPRODUCIBILITY.md" | Complete protocol + hyperparameters inline |
+| `config.py` | "See docs/REPRODUCIBILITY.md" | Complete protocol + target metrics inline |
+| `splits.py` | "See docs/REPRODUCIBILITY.md" | Complete CV structure inline |
+
+The `docs/REPRODUCIBILITY.md` file now serves as a **user guide** (how to run experiments) rather than a developer reference that code points to.
+
+**Distinction preserved:**
+- `FROM PAPER:` citations → ✅ Kept (external immutable source)
+- `See docs/...` references → ❌ Removed (internal mutable coupling)
 
 ---
 

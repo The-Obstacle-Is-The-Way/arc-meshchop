@@ -1,20 +1,24 @@
 """Experiment runner for full paper replication.
 
-Orchestrates 30 training runs:
-- 3 outer folds x 10 restarts = 30 runs
+Orchestrates 30 training runs (3 outer folds x 10 restarts).
 
-FROM PAPER:
-"Hyperparameter optimization was conducted on the inner folds of the first
-outer fold. The optimized hyperparameters were then applied to train models
-on all outer folds."
+Protocol (FROM PAPER Section 2):
+    "Hyperparameter optimization was conducted on the inner folds of the first
+    outer fold. The optimized hyperparameters were then applied to train models
+    on all outer folds."
 
-This means:
-- HP search was only on Outer Fold 1 (we skip this, using paper's final HPs)
-- Final training uses FULL outer-train data (no inner fold split)
-- Fixed epochs (50) - no validation-based early stopping needed
-- 10 restarts for stability/averaging
+Implementation:
+    - HP search: Skipped (using paper's published hyperparameters)
+    - Training data: FULL outer-train (67% of dataset, no inner fold split)
+    - Epochs: Fixed 50 (no validation-based early stopping)
+    - Restarts: 10 per fold for stability averaging
+    - Aggregation: Pool per-subject scores across all ~223 test subjects
 
-See docs/REPRODUCIBILITY.md for full protocol details.
+Hyperparameters (FROM PAPER):
+    - lr=0.001, weight_decay=3e-5, eps=1e-4
+    - OneCycleLR with div_factor=100 (starts at lr/100)
+    - Loss weights: [0.5, 1.0] for [background, lesion]
+    - Batch size: 1 (full 256³ volumes)
 """
 
 from __future__ import annotations
@@ -628,8 +632,8 @@ class ExperimentRunner:
                 for f in result.folds
             ],
             "summary": {
-                # PRIMARY: Test metrics computed from POOLED per-subject scores (n≈224)
-                # Pooled per-subject scores match paper protocol (see docs/REPRODUCIBILITY.md)
+                # PRIMARY: Test metrics computed from POOLED per-subject scores (n≈223)
+                # Paper reports mean±std across all subjects, not mean-of-fold-means
                 "test_mean_dice": result.test_mean_dice,
                 "test_std_dice": result.test_std_dice,
                 "test_median_dice": result.test_median_dice,  # For Figure 2
