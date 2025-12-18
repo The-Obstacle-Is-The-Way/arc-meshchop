@@ -184,13 +184,29 @@ def download(
         output_dir.mkdir(parents=True, exist_ok=True)
         info_path = output_dir / "dataset_info.json"
 
+        # Store paths relative to output_dir for portability.
+        # Note: Some older dataset_info.json files stored repo-root relative paths like
+        # "data/arc/cache/...". New downloads should use "cache/...".
+        output_dir_resolved = output_dir.resolve()
+
+        def _rel_path(p: Path) -> str:
+            try:
+                return str(p.resolve().relative_to(output_dir_resolved))
+            except ValueError:
+                # If the path isn't under output_dir (unexpected), fall back to raw string.
+                return str(p)
+
+        def _rel_path_optional(p: Path | None) -> str | None:
+            return _rel_path(p) if p is not None else None
+
         # Write aligned lists - mask_paths must align 1:1 with image_paths
         # (BUG-001: arc_info.mask_paths filters out None, causing misalignment)
-        mask_paths_aligned = [str(s.mask_path) if s.mask_path else None for s in arc_info.samples]
+        image_paths_rel = [_rel_path(s.image_path) for s in arc_info.samples]
+        mask_paths_aligned = [_rel_path_optional(s.mask_path) for s in arc_info.samples]
 
         dataset_info = {
             "num_samples": len(arc_info),
-            "image_paths": [str(p) for p in arc_info.image_paths],
+            "image_paths": image_paths_rel,
             "mask_paths": mask_paths_aligned,
             "lesion_volumes": arc_info.lesion_volumes,
             "acquisition_types": arc_info.acquisition_types,

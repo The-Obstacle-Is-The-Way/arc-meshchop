@@ -21,7 +21,7 @@ class ExperimentConfig:
     - Final evaluation: 3 outer folds x 10 restarts = 30 runs
     - Training data: Full outer-train (67% of total), not inner-train (44%)
 
-    See docs/archive/bugs/NESTED-CV-PROTOCOL.md for full analysis.
+    See docs/REPRODUCIBILITY.md for full protocol details.
     """
 
     # Data

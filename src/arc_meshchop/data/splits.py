@@ -10,7 +10,7 @@ This means:
 - Inner folds were only used for HP search (first outer fold)
 - For replication with known HPs, we use outer folds only
 
-See docs/archive/bugs/NESTED-CV-PROTOCOL.md for full analysis.
+See docs/REPRODUCIBILITY.md for full protocol details.
 """
 
 from __future__ import annotations
