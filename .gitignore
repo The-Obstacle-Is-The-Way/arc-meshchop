@@ -237,12 +237,15 @@ data/arc/
 *.nii.gz
 *.mgz
 
-# Model checkpoints
+# Model checkpoints (ad-hoc)
 checkpoints/
-*.pt
 *.pth
 *.ckpt
 *.onnx
+
+# Experiment results are tracked (small due to MeshNet's 147K params)
+# experiments/ folder contains ~1.7MB per run (final.pt + results.json)
+# Total: 30 runs × 1.7MB ≈ 51MB - acceptable for reproducibility
 
 # Logs
 logs/
