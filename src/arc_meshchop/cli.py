@@ -312,8 +312,6 @@ def train(
     - CrossEntropyLoss (weights=[0.5, 1.0], label_smoothing=0.01)
     - 50 epochs, batch size 1
     """
-    import torch
-
     from arc_meshchop.data import (
         ARCDataset,
         create_dataloaders,
@@ -324,11 +322,10 @@ def train(
     from arc_meshchop.models import MeshNet
     from arc_meshchop.training import Trainer, TrainingConfig
     from arc_meshchop.utils.device import get_device
+    from arc_meshchop.utils.seeding import seed_everything
 
     # Set seed for reproducibility
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
+    seed_everything(seed)
 
     # Load dataset info
     info_path = data_dir / "dataset_info.json"
@@ -403,6 +400,7 @@ def train(
         val_dataset,
         batch_size=1,  # FROM PAPER: batch size 1
         num_workers=num_workers,
+        seed=seed,
     )
 
     # Create model
@@ -780,6 +778,10 @@ def hpo(
         int,
         typer.Option("--epochs", "-e", help="Epochs per trial"),
     ] = 50,
+    seed: Annotated[
+        int,
+        typer.Option("--seed", help="Random seed for reproducible HPO"),
+    ] = 42,
     pruning: Annotated[
         bool,
         typer.Option("--pruning/--no-pruning", help="Enable ASHA-style pruning"),
@@ -802,6 +804,7 @@ def hpo(
     study = create_study(
         study_name=f"meshnet_hpo_outer{outer_fold}",
         pruning=pruning,
+        seed=seed,
     )
 
     study.optimize(
@@ -810,6 +813,7 @@ def hpo(
             data_dir=data_dir,
             outer_fold=outer_fold,
             epochs=epochs,
+            seed=seed,
         ),
         n_trials=max_trials,
     )
@@ -823,6 +827,7 @@ def hpo(
         "warmup_pct": study.best_params["warmup_pct"],
         "best_dice": study.best_value,
         "n_trials": len(study.trials),
+        "seed": seed,
     }
 
     params_path = output_dir / "best_params.json"

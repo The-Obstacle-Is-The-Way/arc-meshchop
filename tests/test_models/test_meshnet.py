@@ -63,9 +63,9 @@ class TestParameterCounts:
         model = MeshNet(channels=channels)
         actual = model.count_parameters()
 
-        assert actual == expected, (
-            f"MeshNet-{channels} parameter count mismatch: expected {expected:,}, got {actual:,}"
-        )
+        assert (
+            actual == expected
+        ), f"MeshNet-{channels} parameter count mismatch: expected {expected:,}, got {actual:,}"
 
     def test_meshnet_5_params(self) -> None:
         """Verify MeshNet-5 has exactly 5,682 parameters."""

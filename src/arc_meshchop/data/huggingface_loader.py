@@ -22,7 +22,6 @@ from typing import TYPE_CHECKING, Any, cast
 # Import validation constants from bids_hub (full dataset counts)
 # NOTE: These are for the FULL ARC dataset (230 subjects, 902 sessions).
 # Paper training subset is 224 samples (verified separately in verify_sample_counts).
-from bids_hub.validation.arc import ARC_VALIDATION_CONFIG
 
 if TYPE_CHECKING:
     from datasets import Dataset
@@ -291,10 +290,13 @@ def load_arc_from_huggingface(
         ValueError: If no samples match filters, or if verify_counts=True and counts don't match.
     """
     try:
+        from bids_hub.validation.arc import ARC_VALIDATION_CONFIG
         from datasets import load_dataset
     except ImportError as e:
         raise ImportError(
-            "HuggingFace datasets library required. Install with: pip install datasets"
+            "HuggingFace dataset utilities require optional dependencies: "
+            "`datasets` and `neuroimaging-go-brrrr` (bids_hub). "
+            "Install with: pip install 'arc-meshchop[huggingface]'"
         ) from e
 
     logger.info("Loading ARC dataset from HuggingFace: %s", repo_id)

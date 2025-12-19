@@ -203,6 +203,7 @@ def create_dataloaders(
     batch_size: int = 1,
     num_workers: int = 4,
     pin_memory: bool | None = None,
+    seed: int | None = None,
 ) -> tuple[DataLoaderType, DataLoaderType]:
     """Create training and validation dataloaders.
 
@@ -217,14 +218,23 @@ def create_dataloaders(
         pin_memory: Pin memory for faster GPU transfer.
             If None, auto-detect (True for CUDA, False for MPS/CPU).
             MPS generates warnings with pin_memory=True.
+        seed: Random seed for deterministic worker initialization.
 
     Returns:
         Tuple of (train_loader, val_loader).
     """
+    from arc_meshchop.utils.seeding import get_generator, worker_init_fn
+
     # Auto-detect pin_memory: only beneficial for CUDA
     # MPS and CPU don't benefit and MPS may generate warnings
     if pin_memory is None:
         pin_memory = torch.cuda.is_available()
+
+    # Generator for reproducibility
+    generator = get_generator(seed) if seed is not None else None
+
+    # worker_init_fn only needed if seeding is requested
+    init_fn = worker_init_fn if seed is not None else None
 
     train_loader: DataLoaderType = torch.utils.data.DataLoader(
         train_dataset,
@@ -232,6 +242,8 @@ def create_dataloaders(
         shuffle=True,
         num_workers=num_workers,
         pin_memory=pin_memory,
+        worker_init_fn=init_fn,
+        generator=generator,
     )
 
     val_loader: DataLoaderType = torch.utils.data.DataLoader(
@@ -240,6 +252,8 @@ def create_dataloaders(
         shuffle=False,
         num_workers=num_workers,
         pin_memory=pin_memory,
+        worker_init_fn=init_fn,
+        generator=generator,
     )
 
     return train_loader, val_loader

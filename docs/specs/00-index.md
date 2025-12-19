@@ -39,6 +39,10 @@ Additional archived specs:
 | Phase | Document | Description | Blocker |
 |-------|----------|-------------|---------|
 | 7 | [07-huggingface-spaces.md](./07-huggingface-spaces.md) | HF Spaces deployment | Needs trained model |
+| 9 | [09-io-registry-and-logging.md](./09-io-registry-and-logging.md) | IO registry + run logs | None |
+| 10 | [10-reproducibility-seeding.md](./10-reproducibility-seeding.md) | Deterministic seeding | None |
+| 11 | [11-hpo-trial-metric-reporting.md](./11-hpo-trial-metric-reporting.md) | Stable HPO reporting | None |
+| 12 | [12-stratification-guardrails.md](./12-stratification-guardrails.md) | Stratification fallbacks | None |
 
 ---
 
