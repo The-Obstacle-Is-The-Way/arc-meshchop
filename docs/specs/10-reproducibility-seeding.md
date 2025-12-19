@@ -1,5 +1,7 @@
 # Spec 10: Reproducibility Seeding
 
+**Status:** Implemented
+
 ## Summary
 
 Implement a single, consistent seeding strategy across CLI commands and
@@ -9,7 +11,7 @@ DataLoader workers to reduce run-to-run variance.
 
 ## Goals
 
-- Deterministic behavior when a seed is provided.
+- Deterministic behavior when a seed is provided (subject to backend nondeterminism).
 - Reproducible CV splits and DataLoader shuffling.
 - Seed metadata captured in run outputs.
 
@@ -22,32 +24,32 @@ DataLoader workers to reduce run-to-run variance.
 
 ---
 
-## Proposed Design
+## Implementation
 
 ### 1. Global Seeding Utility
 
-Add `arc_meshchop.utils.seed.set_global_seed(seed, deterministic)`:
+Added `arc_meshchop.utils.seeding.seed_everything(seed, deterministic=False)`:
 
-- `random.seed`, `numpy.random.seed`
-- `torch.manual_seed`, `torch.cuda.manual_seed_all`
-- `PYTHONHASHSEED`
-- Optional `torch.backends.cudnn.deterministic/benchmark` toggles
+- Seeds `random`, `numpy`, `torch`, `torch.cuda`.
+- Sets `PYTHONHASHSEED`.
+- Optionally toggles cuDNN deterministic/benchmark flags.
 
 ### 2. DataLoader Seeding
 
-- Add `worker_init_fn` that seeds numpy/random per worker.
-- Use a `torch.Generator` with the base seed for DataLoader shuffling.
+- `worker_init_fn` seeds numpy/random per worker based on `torch.initial_seed`.
+- `get_generator` returns a seeded `torch.Generator`.
+- `create_dataloaders(..., seed=...)` wires the generator and `worker_init_fn`.
 
-### 3. CLI Integration
+### 3. CLI and HPO Integration
 
-- Call `set_global_seed` at the start of `train`, `experiment`, and `hpo`.
-- Record the seed and deterministic flag in `results.json` or `run.json`.
+- `train`, `experiment`, and `hpo` call `seed_everything`.
+- `run_hpo_trial` seeds splits and loaders using the fixed HPO seed.
+- `create_study` seeds the Optuna sampler when a seed is provided.
+- Seeds are persisted in outputs (`results.json`, `best_params.json`, experiment run results).
 
 ---
 
 ## Verification
 
-- Run the same configuration twice and compare:
-  - CV split indices
-  - Metrics within a tight tolerance
-- Add unit tests that verify deterministic DataLoader ordering.
+- Added unit tests for deterministic DataLoader ordering and RNG seeding.
+- Verified HPO reproducibility via fixed trial seed + sampler seed.

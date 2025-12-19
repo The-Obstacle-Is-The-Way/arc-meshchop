@@ -52,12 +52,10 @@ Source paper: `_literature/markdown/stroke_lesion_segmentation/stroke_lesion_seg
 ## Risks
 
 - Small numerical differences from SciPy resampling may lead to slight metric drift.
-- Non-deterministic seeding can obscure parity when comparing runs.
+- Residual nondeterminism can remain on CUDA unless deterministic mode is enabled.
 
 ---
 
 ## Suggested Next Steps
 
-- Implement deterministic seeding (see BUG-012 and Spec 10).
-- Improve HPO reporting for fold-based pruning (see BUG-011 and Spec 11).
 - Add a run manifest and IO registry in code (see BUG-014 and Spec 09).

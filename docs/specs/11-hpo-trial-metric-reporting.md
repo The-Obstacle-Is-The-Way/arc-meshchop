@@ -1,5 +1,7 @@
 # Spec 11: HPO Trial Metric Reporting
 
+**Status:** Implemented
+
 ## Summary
 
 Fix Optuna ASHA reporting to avoid fold-by-fold metric resets and improve
@@ -22,37 +24,24 @@ pruning stability during HPO.
 
 ---
 
-## Proposed Design
+## Implementation
 
-### Option A (Preferred): Aggregate Per Epoch Across Folds
+### Interleaved Per-Epoch Aggregation
 
+- Initialize trainers and data loaders for all inner folds up front.
 - For each epoch:
   - Train one epoch on each inner fold.
-  - Compute mean (or median) validation DICE across folds.
-  - Report the aggregated metric via `trial.report()`.
-
-### Option B: Report Only After All Folds
-
-- Disable pruning during fold training.
-- Report the final aggregated score only once.
+  - Validate each fold and collect DICE values.
+  - Report the mean DICE across folds via `trial.report(mean_dice, epoch)`.
 
 ### Data Capture
 
-- Store per-fold DICE history in the trial attributes or a sidecar JSON file.
-
----
-
-## Implementation Notes
-
-- Refactor `run_hpo_trial` to separate:
-  - fold training loop
-  - aggregation
-  - Optuna reporting
+- Track per-fold best DICE for the final objective value.
+- Store `fold_dice_history` and `mean_dice_history` in Optuna trial attributes.
 
 ---
 
 ## Verification
 
-- Add a unit test that simulates two folds and confirms the reported
-  metric sequence does not reset at fold boundaries.
-- Run HPO twice with the same seed and compare top-ranked trials.
+- Added a unit test that simulates fold metrics and confirms reporting is per-epoch
+  (no fold-boundary resets, decreasing epochs allowed).

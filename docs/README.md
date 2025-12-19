@@ -46,8 +46,8 @@ Deep technical documentation extracted from the paper:
 |----------|--------|
 | [`specs/07-huggingface-spaces.md`](specs/07-huggingface-spaces.md) | Future work |
 | [`specs/09-io-registry-and-logging.md`](specs/09-io-registry-and-logging.md) | Planned |
-| [`specs/10-reproducibility-seeding.md`](specs/10-reproducibility-seeding.md) | Planned |
-| [`specs/11-hpo-trial-metric-reporting.md`](specs/11-hpo-trial-metric-reporting.md) | Planned |
+| [`specs/10-reproducibility-seeding.md`](specs/10-reproducibility-seeding.md) | Implemented |
+| [`specs/11-hpo-trial-metric-reporting.md`](specs/11-hpo-trial-metric-reporting.md) | Implemented |
 | [`specs/12-stratification-guardrails.md`](specs/12-stratification-guardrails.md) | Planned |
 
 ---
