@@ -679,6 +679,10 @@ def experiment(
         bool,
         typer.Option("--paper-parity", help="Verify strict 223-sample mode"),
     ] = False,
+    seed: Annotated[
+        int,
+        typer.Option("--seed", help="Base random seed for reproducibility"),
+    ] = 42,
 ) -> None:
     """Run paper replication experiment (outer-fold evaluation + restarts).
 
@@ -733,6 +737,7 @@ def experiment(
         warmup_pct=warmup_pct,
         div_factor=div_factor,
         skip_completed=skip_completed,
+        base_seed=seed,
     )
 
     console.print(f"Running experiment: {variant}")

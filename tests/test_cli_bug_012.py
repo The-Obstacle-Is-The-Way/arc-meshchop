@@ -74,7 +74,7 @@ def test_dataloader_determinism() -> None:
     batches2 = list(loader2)
 
     # Verify exact match
-    for (b1_x, b1_y), (b2_x, b2_y) in zip(batches1, batches2, strict=False):
+    for (b1_x, b1_y), (b2_x, b2_y) in zip(batches1, batches2, strict=True):
         assert torch.allclose(b1_x, b2_x)
         assert torch.allclose(b1_y, b2_y)
 
