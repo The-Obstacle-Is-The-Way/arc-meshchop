@@ -99,8 +99,8 @@ def test_create_dataloaders_determinism() -> None:
 
     seed = 999
 
-    l1_train, l1_val = create_dataloaders(train_ds, val_ds, batch_size=2, num_workers=2, seed=seed)
-    l2_train, l2_val = create_dataloaders(train_ds, val_ds, batch_size=2, num_workers=2, seed=seed)
+    l1_train, _l1_val = create_dataloaders(train_ds, val_ds, batch_size=2, num_workers=2, seed=seed)
+    l2_train, _l2_val = create_dataloaders(train_ds, val_ds, batch_size=2, num_workers=2, seed=seed)
 
     # Check train loader shuffle
     batches1 = [b[0] for b in l1_train]
