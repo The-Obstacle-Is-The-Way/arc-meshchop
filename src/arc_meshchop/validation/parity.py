@@ -106,7 +106,7 @@ def validate_parity(
         ParityResult with parity assessment.
     """
     # Load results
-    if isinstance(experiment_results, (str, Path)):
+    if isinstance(experiment_results, str | Path):
         with Path(experiment_results).open() as f:
             results = json.load(f)
     else:

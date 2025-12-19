@@ -16,12 +16,23 @@ import logging
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 from arc_meshchop.training.config import HPOConfig, TrainingConfig
 
 if TYPE_CHECKING:
     from torch.utils.data import DataLoader
+
+
+class FoldContext(TypedDict):
+    """Context for a single fold during HPO."""
+
+    trainer: Any  # Avoid circular import issues in some environments
+    train_loader: Any
+    val_loader: Any
+    best_dice: float
+    history: list[float]
+
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +122,7 @@ def create_study(
     pruning: bool = True,
     storage: str | None = None,
     direction: str = "maximize",
+    seed: int | None = 42,
 ) -> Any:
     """Create Optuna study for HPO.
 
@@ -122,6 +134,7 @@ def create_study(
         pruning: Enable ASHA-style pruning.
         storage: Optional storage URL (default: in-memory).
         direction: Optimization direction ("maximize" for DICE).
+        seed: Optional sampler seed for reproducible HPO.
 
     Returns:
         Optuna Study object.
@@ -144,10 +157,15 @@ def create_study(
     else:
         pruner = optuna.pruners.NopPruner()
 
+    sampler: optuna.samplers.BaseSampler | None = None
+    if seed is not None:
+        sampler = optuna.samplers.TPESampler(seed=seed)
+
     study = optuna.create_study(
         study_name=study_name,
         direction=direction,
         pruner=pruner,
+        sampler=sampler,
         storage=storage,
         load_if_exists=True,
     )
@@ -161,6 +179,7 @@ def run_hpo_trial(
     outer_fold: int = 0,
     epochs: int = 50,
     channels: int = 26,
+    seed: int = 42,
 ) -> float:
     """Run single HPO trial with Optuna.
 
@@ -177,6 +196,7 @@ def run_hpo_trial(
         outer_fold: Outer fold for HPO (paper uses 0).
         epochs: Number of epochs per trial.
         channels: Number of channels for MeshNet.
+        seed: Random seed for reproducibility.
 
     Returns:
         Mean validation DICE (to maximize).
@@ -193,6 +213,7 @@ def run_hpo_trial(
     from arc_meshchop.models import MeshNet
     from arc_meshchop.training import Trainer, TrainingConfig
     from arc_meshchop.utils.device import get_device
+    from arc_meshchop.utils.seeding import seed_everything
 
     # Suggest hyperparameters (FROM PAPER search space)
     learning_rate = trial.suggest_float("learning_rate", 1e-4, 4e-2, log=True)
@@ -208,6 +229,10 @@ def run_hpo_trial(
         bg_weight,
         warmup_pct,
     )
+
+    # Set seed for reproducibility (BUG-012)
+    # Use a fixed seed so all trials see the same data splits/initialization order
+    seed_everything(seed)
 
     # Load dataset
     data_dir = Path(data_dir)
@@ -248,11 +273,12 @@ def run_hpo_trial(
         stratification_labels=strat_labels,
         num_outer_folds=3,
         num_inner_folds=3,
-        random_seed=42,
+        random_seed=seed,
     )
 
-    # Train on each inner fold with epoch-level pruning
-    inner_fold_dices = []
+    # Prepare trainers and loaders for all inner folds (BUG-011)
+    # We must interleave training to report aggregated metrics per epoch
+    fold_contexts: list[FoldContext] = []
     device = get_device()
 
     for inner_fold in range(3):
@@ -272,14 +298,13 @@ def run_hpo_trial(
             val_dataset,
             batch_size=1,
             num_workers=4,
+            seed=seed,  # Deterministic loading
         )
 
         # Create model
         model = MeshNet(channels=channels)
 
         # Training config
-        # NOTE: div_factor=100 is critical for paper parity
-        # FROM PAPER: "starts at 1/100th of the max learning rate"
         config = TrainingConfig(
             epochs=epochs,
             learning_rate=learning_rate,
@@ -287,55 +312,82 @@ def run_hpo_trial(
             weight_decay=weight_decay,
             background_weight=bg_weight,
             pct_start=warmup_pct,
-            div_factor=100.0,  # FROM PAPER: "starts at 1/100th of max LR"
+            div_factor=100.0,
             checkpoint_dir=Path(
                 tempfile.mkdtemp(prefix=f"hpo_trial_{trial.number}_fold_{inner_fold}_")
             ),
+            random_seed=seed,
         )
 
         trainer = Trainer(model, config, device=device)
-
-        # Set up scheduler for epoch-level training
         trainer.setup_scheduler(train_loader)
 
-        # Epoch-level training with pruning (ASHA-style)
-        # This allows pruning at epoch granularity, not just after full training
-        best_dice = 0.0
-        for epoch in range(epochs):
-            # Train one epoch
-            trainer.train_epoch(train_loader)
+        fold_contexts.append(
+            {
+                "trainer": trainer,
+                "train_loader": train_loader,
+                "val_loader": val_loader,
+                "best_dice": 0.0,
+                "history": [],
+            }
+        )
 
-            # Validate and get DICE
+    # Epoch-level training with aggregation (BUG-011)
+    mean_dice_history: list[float] = []
+
+    def record_history() -> None:
+        if not hasattr(trial, "set_user_attr"):
+            return
+        fold_history = {str(i): ctx["history"] for i, ctx in enumerate(fold_contexts)}
+        trial.set_user_attr("fold_dice_history", fold_history)
+        trial.set_user_attr("mean_dice_history", mean_dice_history)
+
+    for epoch in range(epochs):
+        fold_dices = []
+
+        # Train one epoch for each fold
+        for ctx in fold_contexts:
+            trainer = ctx["trainer"]
+            train_loader = ctx["train_loader"]
+            val_loader = ctx["val_loader"]
+
+            trainer.train_epoch(train_loader)
             val_metrics = trainer.validate(val_loader)
             val_dice = val_metrics.get("dice", 0.0)
 
-            if val_dice > best_dice:
-                best_dice = val_dice
+            # Track per-fold best (metrics can be noisy)
+            if val_dice > ctx["best_dice"]:
+                ctx["best_dice"] = val_dice
 
-            # Report intermediate value for ASHA-style pruning
-            # Step is (inner_fold * epochs + epoch) to give unique step across folds
-            step = inner_fold * epochs + epoch
-            trial.report(best_dice, step)
+            ctx["history"].append(val_dice)
+            fold_dices.append(val_dice)
 
-            # Check for pruning at each epoch
-            if trial.should_prune():
-                try:
-                    import optuna
-                except ImportError:
-                    pass
-                else:
-                    raise optuna.TrialPruned()
+        # Aggregate across folds
+        mean_dice = sum(fold_dices) / len(fold_dices)
+        mean_dice_history.append(mean_dice)
 
-        inner_fold_dices.append(best_dice)
+        # Report to Optuna (maximize mean_dice)
+        trial.report(mean_dice, epoch)
 
-        # Clear CUDA cache between folds
+        # Check for pruning
+        if trial.should_prune():
+            record_history()
+            try:
+                import optuna
+            except ImportError:
+                pass
+            else:
+                raise optuna.TrialPruned()
+
+        # Optional: Clear cache periodically?
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-    mean_dice = sum(inner_fold_dices) / len(inner_fold_dices)
-    logger.info("Trial %d: Mean validation DICE = %.4f", trial.number, mean_dice)
+    record_history()
 
-    return mean_dice
+    mean_best_dice = sum(ctx["best_dice"] for ctx in fold_contexts) / len(fold_contexts)
+    logger.info("Trial %d: Mean validation DICE = %.4f", trial.number, mean_best_dice)
+    return mean_best_dice
 
 
 # ===========================================================================

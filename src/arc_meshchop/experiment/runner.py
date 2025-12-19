@@ -422,6 +422,7 @@ class ExperimentRunner:
         from arc_meshchop.models import MeshNet
         from arc_meshchop.training import Trainer, TrainingConfig
         from arc_meshchop.utils.device import get_device
+        from arc_meshchop.utils.seeding import get_generator, seed_everything, worker_init_fn
 
         run_id = f"fold_{outer_fold}_restart_{restart}"
         run_dir = self.config.output_dir / run_id
@@ -441,9 +442,7 @@ class ExperimentRunner:
         seed = self.config.get_restart_seed(restart)
 
         # Set seeds
-        torch.manual_seed(seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(seed)
+        seed_everything(seed)
 
         # Load dataset
         dataset_info = self._load_dataset_info()
@@ -501,6 +500,8 @@ class ExperimentRunner:
             shuffle=True,
             num_workers=4,
             pin_memory=torch.cuda.is_available(),
+            worker_init_fn=worker_init_fn,
+            generator=get_generator(seed),
         )
 
         # Create model

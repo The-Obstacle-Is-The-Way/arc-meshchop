@@ -34,11 +34,20 @@ Local specs (also archived):
 Additional archived specs:
 - [IO-DIRECTORY-STRUCTURE.md](../archive/specs/IO-DIRECTORY-STRUCTURE.md)
 
+### ✅ IMPLEMENTED (Active)
+
+| Phase | Document | Status |
+|-------|----------|--------|
+| 10 | [10-reproducibility-seeding.md](./10-reproducibility-seeding.md) | ✅ Implemented |
+| 11 | [11-hpo-trial-metric-reporting.md](./11-hpo-trial-metric-reporting.md) | ✅ Implemented |
+
 ### 🚧 PENDING IMPLEMENTATION
 
 | Phase | Document | Description | Blocker |
 |-------|----------|-------------|---------|
 | 7 | [07-huggingface-spaces.md](./07-huggingface-spaces.md) | HF Spaces deployment | Needs trained model |
+| 9 | [09-io-registry-and-logging.md](./09-io-registry-and-logging.md) | IO registry + run logs | None |
+| 12 | [12-stratification-guardrails.md](./12-stratification-guardrails.md) | Stratification fallbacks | None |
 
 ---
 
