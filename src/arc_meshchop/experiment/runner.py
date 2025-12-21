@@ -490,6 +490,7 @@ class ExperimentRunner:
         train_dataset = ARCDataset(
             image_paths=[image_paths[i] for i in train_indices],
             mask_paths=[mask_paths[i] for i in train_indices],
+            resample_method=self.config.resample_method,
             cache_dir=self.config.data_dir / "cache" / f"outer_{outer_fold}" / "train",
         )
 
@@ -532,6 +533,7 @@ class ExperimentRunner:
         test_dataset = ARCDataset(
             image_paths=[image_paths[i] for i in test_indices],
             mask_paths=[mask_paths[i] for i in test_indices],
+            resample_method=self.config.resample_method,
             cache_dir=self.config.data_dir / "cache" / f"outer_{outer_fold}" / "test",
         )
 

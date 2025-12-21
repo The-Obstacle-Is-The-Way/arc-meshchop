@@ -21,14 +21,18 @@ Only resampling to 256³@1mm and 0-1 normalization are required.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import nibabel as nib
+import nibabel.processing as nibproc
 import numpy as np
 from scipy import ndimage
 
 if TYPE_CHECKING:
     import numpy.typing as npt
+
+
+ResampleMethod = Literal["scipy_zoom", "nibabel_conform"]
 
 
 def load_nifti(path: Path | str) -> tuple[npt.NDArray[np.float32], npt.NDArray[np.float64]]:
@@ -189,6 +193,7 @@ def preprocess_volume(
     mask_path: Path | str | None = None,
     target_shape: tuple[int, int, int] = (256, 256, 256),
     target_spacing: tuple[float, float, float] = (1.0, 1.0, 1.0),
+    resample_method: ResampleMethod = "scipy_zoom",
 ) -> tuple[npt.NDArray[np.float32], npt.NDArray[np.float32] | None]:
     """Complete preprocessing pipeline for a single volume.
 
@@ -202,11 +207,37 @@ def preprocess_volume(
         mask_path: Optional path to lesion mask.
         target_shape: Target volume shape.
         target_spacing: Target voxel spacing.
+        resample_method: Resampling backend ('scipy_zoom' or 'nibabel_conform').
 
     Returns:
         Tuple of (preprocessed_image, preprocessed_mask).
         Mask is None if mask_path is None.
     """
+    if resample_method == "nibabel_conform":
+        # Use nibabel's conform, which is designed to replicate FreeSurfer's
+        # `mri_convert --conform` behavior (minus 0-255 scaling).
+        image_nii = nib.load(str(image_path))  # type: ignore[attr-defined]
+        image_nii = nib.as_closest_canonical(image_nii)  # type: ignore[attr-defined]
+        image_conf = nibproc.conform(
+            image_nii,
+            out_shape=target_shape,
+            voxel_size=target_spacing,
+            order=1,  # Linear interpolation for images
+            orientation="RAS",
+        )
+        image_data = np.asarray(image_conf.get_fdata(), dtype=np.float32)  # type: ignore[attr-defined]
+        image_normalized = normalize_intensity(image_data)
+
+        mask_normalized = None
+        if mask_path is not None:
+            mask_nii = nib.load(str(mask_path))  # type: ignore[attr-defined]
+            mask_nii = nib.as_closest_canonical(mask_nii)  # type: ignore[attr-defined]
+            mask_resampled = nibproc.resample_from_to(mask_nii, image_conf, order=0)
+            mask_data = np.asarray(mask_resampled.get_fdata(), dtype=np.float32)  # type: ignore[attr-defined]
+            mask_normalized = (mask_data > 0).astype(np.float32)
+
+        return image_normalized, mask_normalized
+
     # Load image
     image_data, image_affine = load_nifti(image_path)
     current_spacing = get_spacing(image_affine)

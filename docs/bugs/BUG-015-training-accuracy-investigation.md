@@ -51,7 +51,7 @@ After completing 2/30 training runs (fold_0_restart_0 and fold_0_restart_1), the
 ### 3. Cross-Validation Structure - VERIFIED CORRECT
 
 - Paper: 3 outer folds, 10 restarts per fold
-- Our impl: 3 outer folds, 10 restarts per fold (6 folds x 5 restarts = 30 for faster testing)
+- Our impl: 3 outer folds, 10 restarts per fold (= 30 total runs)
 - Split: ~67% train, ~33% test per outer fold (verified: 148/75 = 66.4%/33.6%)
 - Stratification: Lesion quintile x acquisition type
 
@@ -103,7 +103,8 @@ The model is confident about MOST lesions but completely fails on specific subje
 
 #### H3: Preprocessing differences
 - Paper used `mri_convert` (FreeSurfer)
-- We use `scipy.ndimage.zoom` for resampling
+- Default pipeline uses `scipy.ndimage.zoom` for resampling
+- New option: `--resample-method nibabel_conform` uses `nibabel.processing.conform` (mri_convert-like) for A/B testing
 - Slight differences in interpolation could affect results
 
 #### H4: Random seed / initialization effects

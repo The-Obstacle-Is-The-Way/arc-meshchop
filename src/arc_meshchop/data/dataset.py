@@ -21,7 +21,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from arc_meshchop.data.preprocessing import preprocess_volume
+from arc_meshchop.data.preprocessing import ResampleMethod, preprocess_volume
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -43,6 +43,7 @@ class ARCDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         target_shape: Target volume shape.
         target_spacing: Target voxel spacing.
         cache_dir: Optional directory for caching.
+        resample_method: Resampling backend for preprocessing.
     """
 
     def __init__(
@@ -53,6 +54,7 @@ class ARCDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         target_shape: tuple[int, int, int] = (256, 256, 256),
         target_spacing: tuple[float, float, float] = (1.0, 1.0, 1.0),
         cache_dir: Path | str | None = None,
+        resample_method: ResampleMethod = "scipy_zoom",
     ) -> None:
         """Initialize ARC dataset.
 
@@ -63,6 +65,7 @@ class ARCDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
             target_shape: Target volume shape.
             target_spacing: Target voxel spacing.
             cache_dir: Optional directory for caching preprocessed data.
+            resample_method: Resampling backend ('scipy_zoom' or 'nibabel_conform').
 
         Raises:
             ValueError: If number of images and masks don't match.
@@ -76,6 +79,7 @@ class ARCDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         self.target_shape = target_shape
         self.target_spacing = target_spacing
         self.cache_dir = Path(cache_dir) if cache_dir else None
+        self.resample_method = resample_method
 
         # Create cache directory if specified
         if self.cache_dir:
@@ -97,9 +101,14 @@ class ARCDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         # Include source path and preprocessing params in hash
         image_path = str(self.image_paths[idx])
         mask_path = str(self.mask_paths[idx])
+        # NOTE: Keep the legacy cache key stable for the default preprocessing path
+        # to avoid invalidating existing caches during long training runs.
+        resample_method: str = getattr(self, "resample_method", "scipy_zoom")
         params = (
             f"{image_path}|{mask_path}|{self.target_shape}|{self.target_spacing}|{self.preprocess}"
         )
+        if resample_method != "scipy_zoom":
+            params += f"|resample_method={resample_method}"
         param_hash = hashlib.md5(params.encode()).hexdigest()[:8]
         return f"sample_{idx:04d}_{param_hash}.npz"
 
@@ -155,11 +164,13 @@ class ARCDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         mask_path = self.mask_paths[idx]
 
         if self.preprocess:
+            resample_method: ResampleMethod = getattr(self, "resample_method", "scipy_zoom")
             image, mask = preprocess_volume(
                 image_path,
                 mask_path,
                 self.target_shape,
                 self.target_spacing,
+                resample_method=resample_method,
             )
         else:
             # Load raw (for pre-preprocessed data)
