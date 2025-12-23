@@ -126,11 +126,13 @@ arc-meshchop train \
   --data-dir data/arc \
   --output outputs/meshnet26 \
   --channels 26 \
+  --resample-method nibabel_conform \
   --epochs 50
 
 # Step 3: Evaluate
 arc-meshchop evaluate outputs/meshnet26/fold_0_0/best.pt \
-  --data-dir data/arc
+  --data-dir data/arc \
+  --resample-method nibabel_conform
 ```
 
 ---

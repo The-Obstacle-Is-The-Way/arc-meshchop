@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -11,6 +13,7 @@ from arc_meshchop.data.preprocessing import (
     get_lesion_quintile,
     get_spacing,
     normalize_intensity,
+    preprocess_volume,
     resample_volume,
 )
 
@@ -237,6 +240,55 @@ class TestLesionQuintile:
         """Test quintile assignment for various volumes."""
         result = get_lesion_quintile(volume)
         assert result == expected
+
+
+class TestPreprocessVolume:
+    """Tests for end-to-end preprocess_volume()."""
+
+    def test_nibabel_conform_backend(self, tmp_path: Path) -> None:
+        """Test nibabel_conform resampling produces valid output."""
+        import nibabel as nib
+
+        # Create a tiny synthetic volume with a non-identity affine to exercise
+        # canonicalization + resampling.
+        image = np.random.rand(10, 12, 14).astype(np.float32) * 1000
+        mask = np.zeros((10, 12, 14), dtype=np.float32)
+        mask[3:5, 4:7, 6:9] = 1.0
+
+        affine = np.array(
+            [
+                [0.0, 0.0, 1.0, 0.0],
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            dtype=np.float64,
+        )
+
+        image_path = tmp_path / "image.nii.gz"
+        mask_path = tmp_path / "mask.nii.gz"
+        nib.save(nib.Nifti1Image(image, affine), str(image_path))  # type: ignore[attr-defined]
+        nib.save(nib.Nifti1Image(mask, affine), str(mask_path))  # type: ignore[attr-defined]
+
+        out_image, out_mask = preprocess_volume(
+            image_path,
+            mask_path,
+            target_shape=(16, 16, 16),
+            target_spacing=(1.0, 1.0, 1.0),
+            resample_method="nibabel_conform",
+        )
+
+        assert out_image.shape == (16, 16, 16)
+        assert out_mask is not None
+        assert out_mask.shape == (16, 16, 16)
+        assert out_image.dtype == np.float32
+        assert out_mask.dtype == np.float32
+        assert out_image.min() >= 0.0
+        assert out_image.max() <= 1.0
+
+        unique = np.unique(out_mask)
+        assert 0.0 in unique
+        assert 1.0 in unique
 
     def test_boundary_values(self) -> None:
         """Test exact boundary values."""
