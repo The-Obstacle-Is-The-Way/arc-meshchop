@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+from arc_meshchop.data.preprocessing import ResampleMethod
+
 
 @dataclass
 class ExperimentConfig:
@@ -32,6 +34,7 @@ class ExperimentConfig:
     # Data
     data_dir: Path = field(default_factory=lambda: Path("data/arc"))
     output_dir: Path = field(default_factory=lambda: Path("experiments"))
+    resample_method: ResampleMethod = "scipy_zoom"
 
     # Model
     model_variant: Literal["meshnet_5", "meshnet_16", "meshnet_26"] = "meshnet_26"

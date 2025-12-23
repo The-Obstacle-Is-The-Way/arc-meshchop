@@ -9,12 +9,13 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Annotated, Literal, cast
+from typing import Annotated, Literal, cast, get_args
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
+from arc_meshchop.data.preprocessing import ResampleMethod
 from arc_meshchop.utils.paths import resolve_dataset_path
 
 app = typer.Typer(
@@ -32,6 +33,19 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
+
+_VALID_RESAMPLE_METHODS = set(get_args(ResampleMethod))
+
+
+def _validate_resample_method(resample_method: str, *, context: str) -> ResampleMethod:
+    """Validate and cast resample_method to proper type."""
+    if resample_method not in _VALID_RESAMPLE_METHODS:
+        err_console.print(
+            f"[red]{context} Error: Invalid --resample-method '{resample_method}'.[/red]"
+        )
+        err_console.print(f"Valid values: {sorted(_VALID_RESAMPLE_METHODS)}")
+        raise typer.Exit(1)
+    return cast(ResampleMethod, resample_method)
 
 
 def _validate_paper_parity(
@@ -234,6 +248,13 @@ def train(
         Path,
         typer.Option("--data-dir", "-d", help="Directory with dataset_info.json"),
     ] = Path("data/arc"),
+    resample_method: Annotated[
+        str,
+        typer.Option(
+            "--resample-method",
+            help="Resampling backend: scipy_zoom (legacy) or nibabel_conform (mri_convert-like)",
+        ),
+    ] = "scipy_zoom",
     output_dir: Annotated[
         Path,
         typer.Option("--output", "-o", help="Output directory for checkpoints"),
@@ -324,6 +345,8 @@ def train(
     from arc_meshchop.utils.device import get_device
     from arc_meshchop.utils.seeding import seed_everything
 
+    resample_method_typed = _validate_resample_method(resample_method, context="Training")
+
     # Set seed for reproducibility
     seed_everything(seed)
 
@@ -386,12 +409,14 @@ def train(
     train_dataset = ARCDataset(
         image_paths=[image_paths[i] for i in train_indices],
         mask_paths=[mask_paths[i] for i in train_indices],
+        resample_method=resample_method_typed,
         cache_dir=data_dir / "cache" / f"fold_{outer_fold}_{inner_fold}" / "train",
     )
 
     val_dataset = ARCDataset(
         image_paths=[image_paths[i] for i in val_indices],
         mask_paths=[mask_paths[i] for i in val_indices],
+        resample_method=resample_method_typed,
         cache_dir=data_dir / "cache" / f"fold_{outer_fold}_{inner_fold}" / "val",
     )
 
@@ -468,6 +493,13 @@ def evaluate(
         Path,
         typer.Option("--data-dir", "-d", help="Directory with dataset_info.json"),
     ] = Path("data/arc"),
+    resample_method: Annotated[
+        str,
+        typer.Option(
+            "--resample-method",
+            help="Resampling backend: scipy_zoom (legacy) or nibabel_conform (mri_convert-like)",
+        ),
+    ] = "scipy_zoom",
     outer_fold: Annotated[
         int,
         typer.Option("--outer-fold", help="Outer CV fold for test set"),
@@ -497,6 +529,8 @@ def evaluate(
     from arc_meshchop.evaluation import SegmentationMetrics
     from arc_meshchop.models import MeshNet
     from arc_meshchop.utils.device import get_device
+
+    resample_method_typed = _validate_resample_method(resample_method, context="Evaluation")
 
     # Load dataset info
     info_path = data_dir / "dataset_info.json"
@@ -562,6 +596,7 @@ def evaluate(
     test_dataset = ARCDataset(
         image_paths=[image_paths[i] for i in test_indices],
         mask_paths=mask_paths,
+        resample_method=resample_method_typed,
     )
 
     # Load model
@@ -638,6 +673,13 @@ def experiment(
         Path,
         typer.Option("--output", "-o", help="Output directory for experiment"),
     ] = Path("experiments"),
+    resample_method: Annotated[
+        str,
+        typer.Option(
+            "--resample-method",
+            help="Resampling backend: scipy_zoom (legacy) or nibabel_conform (mri_convert-like)",
+        ),
+    ] = "scipy_zoom",
     variant: Annotated[
         str,
         typer.Option("--variant", "-v", help="Model variant: meshnet_5, meshnet_16, meshnet_26"),
@@ -699,6 +741,8 @@ def experiment(
     from arc_meshchop.experiment.config import ExperimentConfig
     from arc_meshchop.experiment.runner import run_experiment
 
+    resample_method_typed = _validate_resample_method(resample_method, context="Experiment")
+
     # Validate variant
     valid_variants = {"meshnet_5", "meshnet_16", "meshnet_26"}
     if variant not in valid_variants:
@@ -728,6 +772,7 @@ def experiment(
     config = ExperimentConfig(
         data_dir=data_dir,
         output_dir=output_dir,
+        resample_method=resample_method_typed,
         model_variant=model_variant,
         num_restarts=num_restarts,
         epochs=epochs,

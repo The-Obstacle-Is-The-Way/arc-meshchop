@@ -4,6 +4,7 @@ Open bug writeups for ARC-MeshChop.
 
 ## Open Bugs
 
+- [BUG-015: Training accuracy investigation](BUG-015-training-accuracy-investigation.md) - **ACTIVE INVESTIGATION**
 - [BUG-013: StratifiedKFold fails on small strata](BUG-013-stratifiedkfold-small-class-failure.md)
 - [BUG-014: Run logs and IO registry are not persisted consistently](BUG-014-run-logs-and-io-registry-gap.md)
 
