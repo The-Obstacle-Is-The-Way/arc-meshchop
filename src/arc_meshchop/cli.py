@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Annotated, Literal, cast
+from typing import Annotated, Literal, cast, get_args
 
 import typer
 from rich.console import Console
@@ -34,7 +34,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-_VALID_RESAMPLE_METHODS = {"scipy_zoom", "nibabel_conform"}
+_VALID_RESAMPLE_METHODS = set(get_args(ResampleMethod))
 
 
 def _validate_resample_method(resample_method: str, *, context: str) -> ResampleMethod:
