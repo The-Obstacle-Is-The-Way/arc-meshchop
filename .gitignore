@@ -11,6 +11,9 @@ Icon
 .Spotlight-V100
 .Trashes
 
+# Backup files
+*.bak
+
 # Node.js
 node_modules/
 npm-debug.log*
