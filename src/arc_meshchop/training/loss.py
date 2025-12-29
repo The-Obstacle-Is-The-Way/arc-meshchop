@@ -56,9 +56,11 @@ class WeightedCrossEntropyLoss(nn.Module):
         Returns:
             Scalar loss value.
         """
-        # Initialize loss function on first call (to get correct device)
+        # Initialize loss function on first call (to get correct device/dtype)
         if self._loss_fn is None or self.class_weights.device != logits.device:
-            self.class_weights = self.class_weights.to(logits.device)
+            self.class_weights = self.class_weights.to(
+                logits.device, dtype=logits.dtype
+            )
             self._loss_fn = nn.CrossEntropyLoss(
                 weight=self.class_weights,
                 label_smoothing=self.label_smoothing,

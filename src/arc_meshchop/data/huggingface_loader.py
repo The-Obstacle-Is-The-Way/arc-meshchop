@@ -251,6 +251,7 @@ load_arc_samples = None  # Will be assigned to load_arc_from_huggingface
 def load_arc_from_huggingface(
     repo_id: str = "hugging-science/arc-aphasia-bids",
     cache_dir: Path | str | None = None,
+    hf_cache: Path | str | None = None,
     include_space_2x: bool = True,
     include_space_no_accel: bool = True,
     exclude_turbo_spin_echo: bool = True,
@@ -271,7 +272,10 @@ def load_arc_from_huggingface(
 
     Args:
         repo_id: HuggingFace repository ID.
-        cache_dir: Optional cache directory for downloaded data.
+        cache_dir: Optional cache directory for downloaded data (NIfTI extraction).
+        hf_cache: Optional HuggingFace hub cache directory. If provided, sets HF_HOME
+            environment variable to redirect hub downloads (default: ~/.cache/huggingface).
+            Use this to avoid filling the system disk on WSL2.
         include_space_2x: Include SPACE with 2x acceleration.
         include_space_no_accel: Include SPACE without acceleration.
         exclude_turbo_spin_echo: Exclude turbo-spin echo sequences.
@@ -289,6 +293,8 @@ def load_arc_from_huggingface(
         ImportError: If datasets library not installed.
         ValueError: If no samples match filters, or if verify_counts=True and counts don't match.
     """
+    import os
+
     try:
         from bids_hub.validation.arc import ARC_VALIDATION_CONFIG
         from datasets import load_dataset
@@ -301,11 +307,28 @@ def load_arc_from_huggingface(
 
     logger.info("Loading ARC dataset from HuggingFace: %s", repo_id)
 
-    # Load dataset (will cache automatically)
-    ds = load_dataset(
-        repo_id,
-        cache_dir=str(cache_dir) if cache_dir else None,
-    )
+    # Set HF_HOME to control where hub blobs are cached
+    # This prevents filling ~/.cache/huggingface on WSL2 (M6 fix)
+    original_hf_home = os.environ.get("HF_HOME")
+    if hf_cache is not None:
+        hf_cache_path = Path(hf_cache)
+        hf_cache_path.mkdir(parents=True, exist_ok=True)
+        os.environ["HF_HOME"] = str(hf_cache_path)
+        logger.info("Set HF_HOME=%s to redirect hub cache", hf_cache_path)
+
+    try:
+        # Load dataset (will cache automatically)
+        ds = load_dataset(
+            repo_id,
+            cache_dir=str(cache_dir) if cache_dir else None,
+        )
+    finally:
+        # Restore original HF_HOME
+        if hf_cache is not None:
+            if original_hf_home is not None:
+                os.environ["HF_HOME"] = original_hf_home
+            else:
+                os.environ.pop("HF_HOME", None)
 
     # Get the train split (ARC only has train split)
     dataset = ds["train"]

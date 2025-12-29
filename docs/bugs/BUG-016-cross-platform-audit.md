@@ -313,15 +313,15 @@ MPS tensor creation is wrapped in try-except and only runs when MPS is available
 
 ## Summary Table
 
-| ID | Issue | File | Severity | Action |
+| ID | Issue | File | Severity | Status |
 |----|-------|------|----------|--------|
-| M1 | Unconditional CUDA seeding | `utils/seeding.py:33-37` | Medium | Wrap in CUDA check |
-| M2 | Loss weight dtype | `training/loss.py:60-61` | Low-Med | Add dtype conversion |
-| M3 | Ubuntu-only CI | `.github/workflows/ci.yml` | Medium | Add Windows matrix |
+| M1 | Unconditional CUDA seeding | `utils/seeding.py:33-37` | Medium | **FIXED** |
+| M2 | Loss weight dtype | `training/loss.py:60-61` | Low-Med | **FIXED** |
+| M3 | Ubuntu-only CI | `.github/workflows/ci.yml` | Medium | Backlog |
 | M4 | Makefile bash commands | `Makefile:75-85` | Low | OK for WSL2 |
-| M5 | Pre-commit mypy uses host `uv` | `.pre-commit-config.yaml` | Low | Ensure `uv` installed |
-| M6 | HF hub cache may ignore `cache_dir` | `huggingface_hub` runtime | Medium | Allow setting `HF_HOME`/hub cache |
-| M7 | Docs disagree on dataset size | `DATA.md`, `docs/TROUBLESHOOTING.md` | Medium | Unify size guidance |
+| M5 | Pre-commit mypy uses host `uv` | `.pre-commit-config.yaml` | Low | OK if `uv` installed |
+| M6 | HF hub cache may ignore `cache_dir` | `cli.py`, `huggingface_loader.py` | Medium | **FIXED** |
+| M7 | Docs disagree on dataset size | `DATA.md`, `docs/TROUBLESHOOTING.md` | Medium | **FIXED** |
 | L1 | TFJS disabled on Win/Mac | `tests/test_export/` | Low | Intentional |
 | L2 | Test hardcoded paths | `tests/test_data/` | Low | Safe |
 | L3 | No GPU tests in CI | `.github/workflows/` | Low | Intentional |
@@ -330,15 +330,8 @@ MPS tensor creation is wrapped in try-except and only runs when MPS is available
 
 ## Recommendations
 
-### Before First CUDA Run (Now)
-1. Monitor training for any CUDA-specific errors
-2. Check that FP16 autocast works correctly (should see faster training than MPS FP32)
-3. Verify memory usage (RTX 4090 has 24GB vs Mac's unified memory)
-
-### After Successful CUDA Run
-1. Fix M1 (CUDA seeding guards) - cleaner code
-2. Fix M2 (loss dtype) - prevent potential issues
-3. Consider M3 (Windows CI) for broader test coverage
+### Remaining Work
+- M3: Consider adding Windows/macOS CI matrix for broader test coverage
 
 ### Not Required
 - M4: We're using WSL2, so bash commands work fine

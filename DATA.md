@@ -301,11 +301,29 @@ No. `datasets.load_dataset()` does. bids_hub just provides validation constants.
 
 ### Q: Can I change the cache location?
 
-Yes. Set `HF_HOME=/your/path` before running any commands.
+Yes. Use `--hf-cache /path/to/large/disk` when downloading:
+```bash
+uv run arc-meshchop download --hf-cache /mnt/data/huggingface
+```
+
+Or set the environment variable: `HF_HOME=/your/path` before running any commands.
 
 ### Q: How big is the dataset?
 
-The full ARC dataset is ~50GB. Our filtered subset uses ~25GB (223 T2w + masks).
+**Disk space breakdown:**
+
+| Component | Size | Location |
+|-----------|------|----------|
+| HuggingFace hub cache | ~273GB | `~/.cache/huggingface/` (or `--hf-cache`) |
+| Extracted NIfTI cache | ~50GB | `data/arc/cache/` |
+| Paper subset (223 samples) | ~25GB | (subset of above) |
+| Training checkpoints | ~150MB | `experiments/` |
+
+**Notes:**
+- The 273GB hub cache includes parquet files and blobs during download
+- After download, you can clear it with `huggingface-cli cache clean`
+- Final disk usage after cleanup: ~50GB for the project cache
+- WSL2 users: Use `--hf-cache` to avoid filling the WSL root filesystem
 
 ### Q: Can I use this offline?
 

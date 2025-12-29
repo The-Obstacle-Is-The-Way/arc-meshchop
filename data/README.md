@@ -53,13 +53,20 @@ export HF_HUB_OFFLINE=1
 uv run arc-meshchop train --fold 0
 ```
 
-## Size Estimates
+## Disk Space Requirements
 
-| Component | Size |
-|-----------|------|
-| Full ARC dataset | ~50 GB |
-| Paper subset (223 samples) | ~25 GB |
-| Per sample (T2w + mask) | ~100 MB |
+| Component | Size | Location |
+|-----------|------|----------|
+| HuggingFace hub cache | ~273 GB | `~/.cache/huggingface/` |
+| Extracted NIfTI cache | ~50 GB | `data/arc/cache/` |
+| Paper subset (223 samples) | ~25 GB | (subset of above) |
+| Per sample (T2w + mask) | ~100 MB | — |
+
+**Notes:**
+- During download, ~273GB is needed for the HuggingFace hub cache
+- After download, you can clear it: `huggingface-cli cache clean`
+- Final project usage: ~50GB in `data/arc/cache/`
+- WSL2: Use `--hf-cache /mnt/d/huggingface` to redirect hub cache
 
 ## See Also
 

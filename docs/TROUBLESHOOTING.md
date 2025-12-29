@@ -20,9 +20,16 @@ uv run arc-meshchop download --output data/arc
 ### Download is Slow (~25-45 minutes)
 
 This is normal for first-time setup. The download:
-1. Fetches ~273GB from HuggingFace Hub
-2. Extracts and caches NIfTI files
+1. Downloads ~273GB to HuggingFace hub cache (`~/.cache/huggingface/`)
+2. Extracts ~50GB of NIfTI files to `data/arc/cache/`
 3. Computes lesion volumes for stratification
+
+**Disk space requirement:** ~273GB during download, ~50GB after cleanup.
+
+**WSL2 users:** Redirect the hub cache to avoid filling the root filesystem:
+```bash
+uv run arc-meshchop download --hf-cache /mnt/d/huggingface
+```
 
 **Note:** Subsequent `train` and `experiment` commands read from the cached `dataset_info.json` instantly.
 

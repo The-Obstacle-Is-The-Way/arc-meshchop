@@ -138,6 +138,14 @@ def download(
         Path,
         typer.Option("--output", "-o", help="Output directory for dataset"),
     ] = Path("data/arc"),
+    hf_cache: Annotated[
+        Path | None,
+        typer.Option(
+            "--hf-cache",
+            help="HuggingFace hub cache directory (default: ~/.cache/huggingface). "
+            "Use this to redirect large hub downloads to a disk with more space.",
+        ),
+    ] = None,
     repo_id: Annotated[
         str,
         typer.Option("--repo", help="HuggingFace repository ID"),
@@ -177,6 +185,9 @@ def download(
 
     console.print(f"Downloading ARC dataset to {output_dir}...")
 
+    if hf_cache:
+        console.print(f"[cyan]HuggingFace hub cache redirected to: {hf_cache}[/cyan]")
+
     if paper_parity:
         console.print("[yellow]Paper parity mode enabled: Using strict 223-sample cohort.[/yellow]")
         exclude_turbo_spin_echo = True
@@ -186,6 +197,7 @@ def download(
         arc_info = load_arc_from_huggingface(
             repo_id=repo_id,
             cache_dir=output_dir / "cache",
+            hf_cache=hf_cache,
             include_space_2x=include_space_2x,
             include_space_no_accel=include_space_no_accel,
             exclude_turbo_spin_echo=exclude_turbo_spin_echo,
