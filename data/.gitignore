@@ -1,0 +1,11 @@
+# Ignore all files in this directory
+*
+
+# Except these documentation files
+!.gitignore
+!README.md
+
+# This pattern ensures:
+# 1. The data/ directory is tracked in git (not empty)
+# 2. When cloned, users see README.md explaining where data goes
+# 3. Actual data files (NIfTI, cache, etc.) are never committed
